@@ -3,565 +3,837 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Logistics Game</title>
+    <title>Logistics Game - Empire Builder</title>
     <link rel="manifest" href="./manifest.json">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Courier New', monospace;
             background-color: #1a1a2e;
             color: #ffffff;
             overflow: hidden;
         }
-
         #game-container {
-            display: flex;
+            display: grid;
+            grid-template-columns: 280px 1fr 280px;
             height: 100vh;
-            padding: 20px;
+            padding: 15px;
+            gap: 15px;
         }
-
-        #left-panel {
-            width: 250px;
+        .panel {
             background-color: #16213e;
-            padding: 20px;
-            margin-right: 20px;
+            padding: 15px;
             border-radius: 8px;
+            overflow-y: auto;
         }
-
-        #right-panel {
-            width: 250px;
-            background-color: #16213e;
-            padding: 20px;
-            margin-left: 20px;
-            border-radius: 8px;
-        }
-
+        .panel::-webkit-scrollbar { width: 6px; }
+        .panel::-webkit-scrollbar-thumb { background: #6d4aff; border-radius: 3px; }
         #game-area {
-            flex: 1;
             position: relative;
             background-color: #0f3460;
             border-radius: 8px;
             overflow: hidden;
         }
-
         h2 {
             color: #6d4aff;
-            margin-bottom: 15px;
-            font-size: 14px;
+            margin-bottom: 12px;
+            font-size: 13px;
             text-transform: uppercase;
+            border-bottom: 1px solid #6d4aff;
+            padding-bottom: 8px;
         }
-
         .stat-box {
             background-color: #1a1a2e;
             padding: 10px;
             margin-bottom: 10px;
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 11px;
+            border-left: 3px solid #6d4aff;
         }
-
-        .stat-label {
-            color: #888;
-            font-size: 10px;
-        }
-
-        .stat-value {
-            color: #6d4aff;
-            font-size: 16px;
-            font-weight: bold;
-        }
-
+        .stat-label { color: #888; font-size: 10px; text-transform: uppercase; }
+        .stat-value { color: #4ecca3; font-size: 18px; font-weight: bold; }
+        .money { color: #ffd700; }
         button {
             width: 100%;
-            padding: 12px;
-            margin-top: 10px;
+            padding: 10px;
+            margin-top: 8px;
             background-color: #6d4aff;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-family: inherit;
+            font-size: 11px;
         }
-
-        button:hover {
-            background-color: #5a42cc;
-        }
-
-        button:disabled {
-            background-color: #444;
-            cursor: not-allowed;
-        }
-
-        #canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
+        button:hover:not(:disabled) { background-color: #5a42cc; }
+        button:disabled { background-color: #444; cursor: not-allowed; opacity: 0.6; }
+        .btn-buy { background-color: #4ecca3; }
+        .btn-buy:hover { background-color: #3db892; }
+        .btn-deploy { background-color: #ff6b6b; }
+        .btn-deploy:hover { background-color: #e55555; }
+        #canvas { width: 100%; height: 100%; display: block; }
         #message-overlay {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: rgba(26, 26, 46, 0.95);
-            padding: 30px;
+            background-color: rgba(26, 26, 46, 0.98);
+            padding: 25px;
             border-radius: 10px;
             text-align: center;
             z-index: 100;
             display: none;
+            min-width: 300px;
         }
-
-        .waypoint-list {
-            max-height: 150px;
-            overflow-y: auto;
+        .list-item {
+            background-color: #1a1a2e;
+            padding: 10px;
+            margin-bottom: 6px;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+        .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .list-info { display: flex; justify-content: space-between; color: #888; }
+        .truck-type { color: #6d4aff; font-weight: bold; }
+        .employee-badge { padding: 2px 6px; border-radius: 3px; font-size: 9px; }
+        .badge-newbie { background-color: #ff6b6b; }
+        .badge-experienced { background-color: #ffd700; color: #1a1a2e; }
+        .badge-expert { background-color: #4ecca3; }
+        .destination-card {
+            background-color: #1a1a2e;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border: 2px solid transparent;
+            cursor: pointer;
+        }
+        .destination-card:hover { border-color: #6d4aff; }
+        .destination-card.selected { border-color: #4ecca3; background-color: #16213e; }
+        .dest-name { font-weight: bold; color: #fff; margin-bottom: 4px; }
+        .dest-rate { color: #ffd700; font-size: 11px; }
+        .dest-distance { color: #888; font-size: 10px; }
+        .progress-bar {
+            background-color: #333;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #4ecca3;
+            transition: width 0.3s;
+        }
+        #notifications {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 200;
+            max-width: 280px;
+        }
+        .notification {
+            background-color: rgba(26, 26, 46, 0.95);
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border-left: 4px solid #6d4aff;
+            animation: slideIn 0.3s ease;
             font-size: 11px;
         }
-
-        .waypoint-item {
-            padding: 5
-            background-color: #16213e;
-            margin-bottom: 4px;
-            border-radius: 2px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        .tab-buttons { display: flex; gap: 4px; margin-bottom: 10px; }
+        .tab-btn {
+            flex: 1;
+            padding: 8px 4px;
+            font-size: 10px;
+            margin: 0;
+            background-color: #1a1a2e;
         }
-
-        .remove-btn {
-            color: #ff4757;
-            cursor: pointer;
-            font-weight: bold;
-            padding: 0 8px;
-        }
+        .tab-btn.active { background-color: #6d4aff; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
     </style>
 </head>
 <body>
+    <div id="notifications"></div>
+    
     <div id="game-container">
         <!-- LEFT PANEL -->
-        <div id="left-panel">
-            <h2>📦 Orders</h2>
+        <div class="panel" id="left-panel">
+            <h2>💰 Company Stats</h2>
             <div class="stat-box">
-                <div class="stat-label">Pending Orders</div>
-                <div class="stat-value" id="pending-orders">0</div>
+                <div class="stat-label">Balance</div>
+                <div class="stat-value money" id="balance">$0</div>
             </div>
             <div class="stat-box">
-                <div class="stat-label">Completed</div>
-                <div class="stat-value" id="completed-orders">0</div>
-            </div>
-            <button onclick="spawnOrder()">New Order</button>
-            <br>
-            <h2>Truck</h2>
-            <div class="stat-box">
-                <div class="stat-label">Current Load</div>
-                <div class="stat-value"><span id="truck-load">0</span>/<span id="truck-capacity">5</span></div>
+                <div class="stat-label">Total Revenue</div>
+                <div class="stat-value money" id="total-revenue">$0</div>
             </div>
             <div class="stat-box">
-                <div class="stat-label">Status</div>
-                <div class="stat-value" id="truck-status">Idle</div>
+                <div class="stat-label">Day</div>
+                <div class="stat-value" id="day-count">1</div>
             </div>
+
+            <h2>🚛 Fleet (<span id="active-trucks">0</span>/<span id="max-trucks">5</span>)</h2>
+            <div class="tab-buttons">
+                <button class="tab-btn active" onclick="switchTab('fleet')">Active</button>
+                <button class="tab-btn" onclick="switchTab('garage')">Garage</button>
+            </div>
+            
+            <div id="tab-fleet" class="tab-content active">
+                <div id="active-truck-list"></div>
+            </div>
+            <div id="tab-garage" class="tab-content">
+                <div id="garage-truck-list"></div>
+            </div>
+
+            <h2>👥 Employees</h2>
+            <div class="stat-box">
+                <div class="stat-label">Drivers Hired</div>
+                <div class="stat-value" id="driver-count">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Monthly Wages</div>
+                <div class="stat-value" id="monthly-wages">$0</div>
+            </div>
+            <div id="employee-list"></div>
         </div>
 
         <!-- GAME AREA -->
         <div id="game-area">
             <canvas id="canvas"></canvas>
             <div id="message-overlay">
-                <h2 id="message-title">Game Over</h2>
-                <p id="message-text">You delivered 10 orders!</p>
-                <button onclick="restartGame()" style="margin-top: 15px;">Play Again</button>
+                <h2 id="message-title">Notification</h2>
+                <p id="message-text">Details here...</p>
+                <button id="message-close" onclick="closeMessage()" style="margin-top: 15px;">OK</button>
             </div>
         </div>
 
         <!-- RIGHT PANEL -->
-        <div id="right-panel">
-            <h2>🗺️ Waypoints</h2>
-            <div class="stat-box">
-                <div class="stat-label">Click map to add pickup/dropoff points</div>
-            </div>
-            <div class="waypoint-list" id="waypoint-list"></div>
-            <button onclick="clearWaypoints()">Clear All</button>
-            <br>
-            <h2>⚙️ Settings</h2>
-            <div class="stat-box">
-                <div class="stat-label">Speed</div>
+        <div class="panel" id="right-panel">
+            <h2>🏢 Destinations</h2>
+            <div id="destination-list"></div>
+
+            <h2>📋 Available Orders</h2>
+            <div id="order-list"></div>
+
+            <h2>🔧 Actions</h2>
+            <button onclick="showMarketplace()">Open Marketplace</button>
+            <button onclick="hireDriver()">Hire Driver ($500)</button>
+            <button onclick="nextDay()">End Day & Collect Wages</button>
+            <div class="stat-box" style="margin-top: 15px;">
+                <div class="stat-label">Game Speed</div>
                 <input type="range" min="1" max="10" value="5" onchange="setSpeed(this.value)" style="width: 100%;">
             </div>
-            <button onclick="togglePause()">Pause/Resume</button>
+        </div>
+    </div>
+
+    <!-- MARKETPLACE MODAL -->
+    <div id="marketplace-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:150; justify-content:center; align-items:center;">
+        <div style="background:#1a1a2e; padding:30px; border-radius:10px; max-width:500px; max-height:80vh; overflow-y:auto;">
+            <h2 style="text-align:center;">🚚 Truck Marketplace</h2>
+            <div id="truck-marketplace"></div>
+            <button onclick="closeMarketplace()" style="margin-top:15px; background-color:#444;">Close</button>
         </div>
     </div>
 
     <script>
+        // ==================== CONFIGURATION ====================
+        const TRUCK_TYPES = {
+            small: { name: "Small Van", capacity: 3, speed: 4, cost: 2000, color: "#95a5a6", maintenance: 50 },
+            medium: { name: "Box Truck", capacity: 8, speed: 3.5, cost: 5000, color: "#3498db", maintenance: 120 },
+            large: { name: "Semi Trailer", capacity: 15, speed: 3, cost: 12000, color: "#2ecc71", maintenance: 300 },
+            mega: { name: "Mega Hauler", capacity: 25, speed: 2.5, cost: 25000, color: "#9b59b6", maintenance: 600 }
+        };
+
+        const DESTINATIONS = [
+            { name: "Downtown Depot", x: 0.3, y: 0.3, baseRate: 100, distanceMod: 1.0 },
+            { name: "Industrial Park", x: 0.7, y: 0.7, baseRate: 150, distanceMod: 1.3 },
+            { name: "Airport Cargo", x: 0.8, y: 0.2, baseRate: 200, distanceMod: 1.5 },
+            { name: "Port Terminal", x: 0.2, y: 0.8, baseRate: 220, distanceMod: 1.6 },
+            { name: "Suburban Hub", x: 0.5, y: 0.5, baseRate: 80, distanceMod: 0.8 }
+        ];
+
+        const EMPLOYEE_TIERS = {
+            newbie: { multiplier: 1.0, wage: 300, color: "#ff6b6b" },
+            experienced: { multiplier: 1.3, wage: 600, color: "#ffd700" },
+            expert: { multiplier: 1.6, wage: 1000, color: "#4ecca3" }
+        };
+
         // ==================== GAME STATE ====================
         const gameState = {
             canvas: null,
             ctx: null,
             width: 0,
             height: 0,
-            truck: { x: 0, y: 0, targetX: 0, targetY: 0, speed: 3, capacity: 5, load: 0 },
-            orders: [],
-            waypoints: [],
-            completedOrders: 0,
+            balance: 5000,
+            totalRevenue: 0,
+            day: 1,
+            gameSpeed: 5,
             paused: false,
-            gameOver: false,
-            maxOrders: 15
+            selectedDestination: 0,
+            trucks: [],
+            availableTrucks: [], // Trucks in garage waiting for driver
+            employees: [],
+            orders: [],
+            notifications: [],
+            maxTrucks: 10,
+            canvasOffset: { x: 0, y: 0 },
+            truckIdCounter: 0,
+            orderIdCounter: 0
         };
 
         // ==================== INITIALIZATION ====================
         window.onload = () => {
+            initGame();
+            registerServiceWorker();
+            generateOrders();
+        };
+
+        function initGame() {
             gameState.canvas = document.getElementById('canvas');
             gameState.ctx = gameState.canvas.getContext('2d');
             resizeCanvas();
-            resetGame();
-            animate();
             
-            // Register service worker
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(() => console.log('Service Worker registered'))
-                    .catch(err => console.error('SW registration failed:', err));
-            }
-            
-            // Register as PWA
-            if ('serviceWorker' in navigator && 'PresentationRequest' in window) {
-                window.addEventListener('load', async () => {
-                    if (navigator.getInstalledRelatedApps) {
-                        // PWA install prompt handled by browser
-                    }
-                });
-            }
-        };
+            // Starting truck
+            gameState.trucks.push({
+                id: ++gameState.truckIdCounter,
+                type: 'small',
+                x: gameState.width / 2,
+                y: gameState.height / 2,
+                targetX: gameState.width / 2,
+                targetY: gameState.height / 2,
+                cargo: 0,
+                state: 'idle',
+                progress: 0,
+                assignedOrder: null,
+                efficiency: 1.0
+            });
 
-        window.onresize = resizeCanvas;
-        
+            // Starting driver
+            gameState.employees.push({
+                id: 1,
+                name: generateName(),
+                tier: 'newbie',
+                experience: 0
+            });
+
+            resizeCanvas();
+            animate();
+            updateUI();
+            setInterval(generateOrders, 10000);
+        }
+
         function resizeCanvas() {
             const container = document.getElementById('game-area');
             gameState.canvas.width = container.clientWidth;
             gameState.canvas.height = container.clientHeight;
             gameState.width = gameState.canvas.width;
             gameState.height = gameState.canvas.height;
+        }
+
+        function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(() => console.log('SW registered'));
+            }
+        }
+
+        // ==================== GENERATORS ====================
+        function generateName() {
+            const firstNames = ['Alex', 'Jordan', 'Taylor', 'Casey', 'Sam', 'Riley', 'Morgan', 'Quinn', 'Avery', 'Parker'];
+            const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Davis', 'Miller', 'Wilson', 'Moore', 'Taylor', 'Anderson'];
+            return firstNames[Math.floor(Math.random() * firstNames.length)] + ' ' + lastNames[Math.floor(Math.random() * lastNames.length)];
+        }
+
+        function generateOrders() {
+            if (gameState.orders.length >= 20) return;
             
-            // Reset truck position if out of bounds
-            if (gameState.truck.x > gameState.width) gameState.truck.x = gameState.width / 2;
-            if (gameState.truck.y > gameState.height) gameState.truck.y = gameState.height / 2;
+            const numOrders = Math.floor(Math.random() * 3) + 1;
+            for (let i = 0; i < numOrders && gameState.orders.length < 20; i++) {
+                const dest = DESTINATIONS[Math.floor(Math.random() * DESTINATIONS.length)];
+                const pickupDest = DESTINATIONS[Math.floor(Math.random() * DESTINATIONS.length)];
+                
+                const order = {
+                    id: ++gameState.orderIdCounter,
+                    pickupX: pickupDest.x * gameState.width,
+                    pickupY: pickupDest.y * gameState.height,
+                    dropoffX: dest.x * gameState.width,
+                    dropoffY: dest.y * gameState.height,
+                    pickupDest: pickupDest.name,
+                    dropoffDest: dest.name,
+                    reward: Math.round(dest.baseRate * dest.distanceMod * (0.8 + Math.random() * 0.4)),
+                    status: 'available',
+                    priority: Math.random() > 0.7 ? 'express' : 'standard',
+                    createdAt: Date.now()
+                };
+                gameState.orders.push(order);
+                notify(`New order available: ${order.pickupDest} → ${order.dropoffDest}`, 'info');
+            }
         }
 
-        // ==================== GAME LOGIC ====================
-        function resetGame() {
-            gameState.truck.x = gameState.width / 2;
-            gameState.truck.y = gameState.height / 2;
-            gameState.truck.targetX = gameState.truck.x;
-            gameState.truck.targetY = gameState.truck.y;
-            gameState.truck.load = 0;
-            gameState.orders = [];
-            gameState.completedOrders = 0;
-            gameState.gameOver = false;
-            gameState.paused = false;
-            document.getElementById('message-overlay').style.display = 'none';
-            updateStats();
+        // ==================== GAME LOOP ====================
+        function animate() {
+            const ctx = gameState.ctx;
+            
+            // Clear
+            ctx.fillStyle = '#0f3460';
+            ctx.fillRect(0, 0, gameState.width, gameState.height);
+            
+            // Draw destination zones
+            drawDestinations(ctx);
+            
+            // Draw orders
+            drawOrders(ctx);
+            
+            // Draw trucks
+            gameState.trucks.forEach(truck => drawTruck(ctx, truck));
+            
+            // Update trucks
+            if (!gameState.paused) updateTrucks();
+            
+            requestAnimationFrame(animate);
         }
 
-        function spawnOrder() {
-            if (gameState.orders.length >= gameState.maxOrders) {
-                showMessage("Too many pending orders!", "Try delivering some first");
+        function drawDestinations(ctx) {
+            DESTINATIONS.forEach((dest, i) => {
+                const x = dest.x * gameState.width;
+                const y = dest.y * gameState.height;
+                
+                // Zone glow
+                const gradient = ctx.createRadialGradient(x, y, 0, x, y, 60);
+                gradient.addColorStop(0, i === gameState.selectedDestination ? 'rgba(78, 204, 163, 0.4)' : 'rgba(109, 74, 255, 0.15)');
+                gradient.addColorStop(1, 'transparent');
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(x, y, 60, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Zone circle
+                ctx.fillStyle = i === gameState.selectedDestination ? '#4ecca3' : '#6d4aff';
+                ctx.beginPath();
+                ctx.arc(x, y, 15, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Label
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 11px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText(dest.name, x, y - 22);
+            });
+        }
+
+        function drawOrders(ctx) {
+            gameState.orders.forEach(order => {
+                if (order.status !== 'available') return;
+                
+                // Pickup marker
+                const isExpress = order.priority === 'express';
+                ctx.fillStyle = isExpress ? '#ff6b6b' : '#e74c3c';
+                ctx.beginPath();
+                ctx.arc(order.pickupX, order.pickupY, 8, 0, Math.PI * 2);
+                ctx.fill();
+                if (isExpress) {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 10px Courier New';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('!', order.pickupX, order.pickupY + 3);
+                }
+                
+                // Dropoff marker
+                ctx.fillStyle = '#f39c12';
+                ctx.beginPath();
+                ctx.arc(order.dropoffX, order.dropoffY, 8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Reward tag
+                ctx.fillStyle = '#ffd700';
+                ctx.font = '9px Courier New';
+                ctx.fillText(`$${order.reward}`, order.pickupX, order.pickupY - 12);
+            });
+        }
+
+        function drawTruck(ctx, truck) {
+            const type = TRUCK_TYPES[truck.type];
+            const size = type === 'mega' ? 20 : (type === 'large' ? 16 : 12);
+            
+            // Glow
+            ctx.shadowColor = type.color;
+            ctx.shadowBlur = 15;
+            
+            // Body
+            ctx.fillStyle = type.color;
+            ctx.beginPath();
+            if (type === 'mega' || type === 'large') {
+                ctx.fillRect(truck.x - 20, truck.y - size/2, 40, size);
+            } else {
+                ctx.fillRect(truck.x - size, truck.y - size/2, size * 2, size);
+            }
+            
+            ctx.shadowBlur = 0;
+            
+            // Load indicator
+            if (truck.cargo > 0) {
+                ctx.fillStyle = '#4ecca3';
+                for (let i = 0; i < Math.min(truck.cargo, 5); i++) {
+                    ctx.fillRect(truck.x - 15 + i * 5, truck.y - 3, 4, 6);
+                }
+            }
+            
+            // Status indicator
+            ctx.fillStyle = truck.state === 'busy' ? '#ff6b6b' : '#4ecca3';
+            ctx.beginPath();
+            ctx.arc(truck.x - 22, truck.y, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function updateTrucks() {
+            gameState.trucks.forEach(truck => {
+                const type = TRUCK_TYPES[truck.type];
+                const effectiveSpeed = type.speed * gameState.gameSpeed * truck.efficiency;
+                
+                // Idle truck - find work
+                if (truck.state === 'idle') {
+                    const order = gameState.orders.find(o => o.status === 'available' && truck.cargo < type.capacity);
+                    if (order) {
+                        truck.targetX = order.pickupX;
+                        truck.targetY = order.pickupY;
+                        truck.assignedOrder = order;
+                        truck.state = 'heading_pickup';
+                        order.status = 'claimed';
+                        notify(`${TRUCK_TYPES[truck.type].name} heading to ${order.pickupDest}`, 'info');
+                    }
+                    return;
+                }
+                
+                // Moving
+                const dx = truck.targetX - truck.x;
+                const dy = truck.targetY - truck.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < 20) {
+                    truck.x = truck.targetX;
+                    truck.y = truck.targetY;
+                    handleArrival(truck);
+                } else {
+                    truck.x += (dx / dist) * effectiveSpeed;
+                    truck.y += (dy / dist) * effectiveSpeed;
+                }
+            });
+        }
+
+        function handleArrival(truck) {
+            const order = truck.assignedOrder;
+            if (!order) return;
+            
+            if (truck.state === 'heading_pickup') {
+                // Pickup complete
+                truck.cargo++;
+                truck.state = 'heading_dropoff';
+                truck.targetX = order.dropoffX;
+                truck.targetY = order.dropoffY;
+                notify(`Picked up cargo at ${order.pickupDest}`, 'success');
+            } else if (truck.state === 'heading_dropoff') {
+                // Delivery complete!
+                const bonus = calculateBonus(truck);
+                const totalReward = order.reward + bonus;
+                gameState.balance += totalReward;
+                gameState.totalRevenue += totalReward;
+                order.status = 'completed';
+                truck.cargo--;
+                truck.state = 'idle';
+                truck.assignedOrder = null;
+                
+                // Employee experience gain
+                if (gameState.employees.length > 0) {
+                    gainExperience(gameState.employees[0], totalReward);
+                }
+                
+                notify(`Delivered to ${order.dropoffDest}! Earned $${totalReward}${bonus > 0 ? '+' : ''}`, 'success');
+            }
+            
+            // Remove completed order
+            gameState.orders = gameState.orders.filter(o => o.status !== 'completed');
+            updateUI();
+        }
+
+        function calculateBonus(truck) {
+            const type = TRUCK_TYPES[truck.type];
+            let bonus = 0;
+            if (truck.efficiency > 1.0) bonus = Math.round(100 * (truck.efficiency - 1));
+            return bonus;
+        }
+
+        // ==================== EMPLOYEE SYSTEM ====================
+        function hireDriver() {
+            const cost = EMPLOYEE_TIERS.newbie.wage;
+            if (gameState.balance < cost) {
+                notify("Not enough funds to hire driver!", "error");
                 return;
             }
             
-            const order = {
-                id: Date.now(),
-                pickupX: Math.random() * (gameState.width - 100) + 50,
-                pickupY: Math.random() * (gameState.height - 100) + 50,
-                dropoffX: Math.random() * (gameState.width - 100) + 50,
-                dropoffY: Math.random() * (gameState.height - 100) + 50,
-                state: 'pickup_pending' // pickup_pending, pickup_ready, dropoff_pending
-            };
-            gameState.orders.push(order);
-            updateStats();
-            drawWaypoints();
+            gameState.balance -= cost;
+            const driverTier = gameState.employees.length === 0 ? 'newbie' : 
+                               (gameState.employees.length < 3 ? 'experienced' : 'expert');
+            
+            gameState.employees.push({
+                id: gameState.employees.length + 1,
+                name: generateName(),
+                tier: driverTier,
+                experience: 0
+            });
+            
+            notify(`Hired ${gameState.employees[gameState.employees.length - 1].name}!`, 'success');
+            updateUI();
         }
 
-        function updateStats() {
-            document.getElementById('pending-orders').textContent = gameState.orders.filter(o => o.state !== 'delivered').length;
-            document.getElementById('completed-orders').textContent = gameState.completedOrders;
-            document.getElementById('truck-load').textContent = gameState.truck.load;
-            document.getElementById('truck-capacity').textContent = gameState.truck.capacity;
+        function gainExperience(employee, amount) {
+            employee.experience += amount;
+            const tier = EMPLOYEE_TIERS[employee.tier];
             
-            const statusEl = document.getElementById('truck-status');
-            if (gameState.truck.load === 0) {
-                statusEl.textContent = 'Empty - Find pickups';
-            } else {
-                statusEl.textContent = 'Loaded - Deliver!';
+            // Promote based on experience
+            const thresholds = { newbie: 1500, experienced: 3000 };
+            if (employee.tier === 'newbie' && employee.experience >= thresholds.newbie) {
+                employee.tier = 'experienced';
+                notify(`${employee.name} promoted to Experienced Driver!`, 'success');
+            } else if (employee.tier === 'experienced' && employee.experience >= thresholds.experienced) {
+                employee.tier = 'expert';
+                notify(`${employee.name} promoted to Expert Driver!`, 'success');
             }
         }
 
-        // ==================== WAYPOINT MANAGEMENT ====================
-        gameState.canvas.addEventListener('click', (e) => {
-            if (gameState.paused || gameState.gameOver) return;
+        // ==================== MARKETPLACE ====================
+        function showMarketplace() {
+            const modal = document.getElementById('marketplace-modal');
+            const container = document.getElementById('truck-marketplace');
+            const count = gameState.availableTrucks.length;
+            const activeCount = gameState.trucks.length;
             
-            const rect = gameState.canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            container.innerHTML = `
+                <p style="color:#888; margin-bottom:15px;">Available Garage Slots: ${count}/${gameState.maxTrucks}</p>
+                <p style="color:#888; margin-bottom:15px;">Active Fleet: ${activeCount}/${gameState.maxTrucks}</p>
+                ${Object.entries(TRUCK_TYPES).map(([key, type]) => `
+                    <div class="list-item" style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-weight:bold; color:${type.color};">${type.name}</div>
+                            <div style="font-size:9px; color:#888;">Capacity: ${type.capacity} | Speed: ${type.speed} | Maint: $${type.maintenance}/day</div>
+                        </div>
+                        <button class="btn-buy" onclick="buyTruck('${key}')" ${count >= gameState.maxTrucks ? 'disabled' : ''}>
+                            $${type.cost.toLocaleString()}
+                        </button>
+                    </div>
+                `).join('')}
+            `;
             
-            gameState.waypoints.push({ x, y });
-            drawWaypoints();
-            updateWaypointList();
-        });
+            modal.style.display = 'flex';
+        }
 
-        function drawWaypoints() {
-            const ctx = gameState.ctx;
-            gameState.waypoints.forEach((wp, i) => {
-                ctx.fillStyle = '#6d4aff';
-                ctx.beginPath();
-                ctx.arc(wp.x, wp.y, 8, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '10px Courier New';
-                ctx.textAlign = 'center';
-                ctx.fillText(i + 1, wp.x, wp.y + 3);
+        function closeMarketplace() {
+            document.getElementById('marketplace-modal').style.display = 'none';
+        }
+
+        function buyTruck(type) {
+            const truckType = TRUCK_TYPES[type];
+            if (gameState.balance < truckType.cost) {
+                notify("Not enough funds!", "error");
+                return;
+            }
+            if (gameState.availableTrucks.length >= gameState.maxTrucks) {
+                notify("No garage slots available!", "error");
+                return;
+            }
+            
+            gameState.balance -= truckType.cost;
+            gameState.availableTrucks.push({ type });
+            notify(`Bought ${truckType.name}! Assign to a driver to use it.`, "success");
+            
+            // Auto-assign to first idle driver
+            if (gameState.employees.length > gameState.trucks.length) {
+                assignTruckToDriver(gameState.availableTrucks.length - 1);
+            }
+            
+            closeMarketplace();
+            updateUI();
+        }
+
+        function assignTruckToDriver(garageIndex) {
+            if (gameState.availableTrucks.length <= garageIndex) return;
+            if (gameState.employees.length <= gameState.trucks.length) return;
+            
+            const truck = gameState.availableTrucks.splice(garageIndex, 1)[0];
+            gameState.trucks.push({
+                id: ++gameState.truckIdCounter,
+                type: truck.type,
+                x: gameState.width / 2,
+                y: gameState.height / 2,
+                targetX: gameState.width / 2,
+                targetY: gameState.height / 2,
+                cargo: 0,
+                state: 'idle',
+                progress: 0,
+                assignedOrder: null,
+                efficiency: EMPLOYEE_TIERS[gameState.employees[gameState.trucks.length].tier]?.multiplier || 1.0
             });
+            
+            notify("Truck assigned to driver!", "success");
+            updateUI();
         }
 
-        function updateWaypointList() {
-            const list = document.getElementById('waypoint-list');
-            list.innerHTML = '';
-            gameState.waypoints.forEach((wp, i) => {
-                const item = document.createElement('div');
-                item.className = 'waypoint-item';
-                item.innerHTML = `<span>${i + 1}: (${Math.round(wp.x)}, ${Math.round(wp.y)})</span><span class="remove-btn" onclick="removeWaypoint(${i})">×</span>`;
-                list.appendChild(item);
-            });
+        // ==================== DAY CYCLE ====================
+        function nextDay() {
+            // Calculate wages
+            const totalWages = gameState.employees.reduce((sum, emp) => sum + EMPLOYEE_TIERS[emp.tier].wage, 0);
+            
+            // Pay wages
+            gameState.balance -= totalWages;
+            gameState.day++;
+            
+            // Maintenance costs
+            const totalMaintenance = gameState.trucks.reduce((sum, t) => sum + TRUCK_TYPES[t.type].maintenance, 0);
+            gameState.balance -= totalMaintenance;
+            
+            notify(`Day ${gameState.day - 1} Complete! Paid $${totalWages} wages, $${totalMaintenance} maintenance`, 'info');
+            
+            if (gameState.balance < 0) {
+                notify("⚠️ Bankruptcy Warning! You're in debt!", 'warning');
+            }
+            
+            updateUI();
         }
 
-        function removeWaypoint(index) {
-            gameState.waypoints.splice(index, 1);
-            drawWaypoints();
-            updateWaypointList();
+        // ==================== UI UPDATES ====================
+        function updateUI() {
+            document.getElementById('balance').textContent = `$${gameState.balance.toLocaleString()}`;
+            document.getElementById('total-revenue').textContent = `$${gameState.totalRevenue.toLocaleString()}`;
+            document.getElementById('day-count').textContent = gameState.day;
+            document.getElementById('active-trucks').textContent = gameState.trucks.length;
+            document.getElementById('max-trucks').textContent = gameState.maxTrucks;
+            document.getElementById('driver-count').textContent = gameState.employees.length;
+            
+            const totalWages = gameState.employees.reduce((sum, emp) => sum + EMPLOYEE_TIERS[emp.tier].wage, 0);
+            document.getElementById('monthly-wages').textContent = `$${totalWages.toLocaleString()}`;
+            
+            // Active trucks
+            const activeList = document.getElementById('active-truck-list');
+            activeList.innerHTML = gameState.trucks.map((truck, i) => `
+                <div class="list-item">
+                    <div class="list-header">
+                        <span class="truck-type">${TRUCK_TYPES[truck.type].name}</span>
+                        <span>${truck.cargo}/${TRUCK_TYPES[truck.type].capacity}</span>
+                    </div>
+                    <div class="list-info">
+                        <span>${truck.state.toUpperCase()}</span>
+                        <span class="employee-badge badge-${EMPLOYEE_TIERS[gameState.employees[i]?.tier || 'newbie']}">
+                            ${gameState.employees[i]?.name || 'Unstaffed'}
+                        </span>
+                    </div>
+                    ${gameState.availableTrucks.length > 0 && i >= gameState.employees.length ? `
+                        <button class="btn-deploy" onclick="assignTruckToDriver(${i - gameState.employees.length})">
+                            Deploy from Garage
+                        </button>
+                    ` : ''}
+                </div>
+            `).join('');
+            
+            // Garage trucks
+            const garageList = document.getElementById('garage-truck-list');
+            garageList.innerHTML = gameState.availableTrucks.map((truck, i) => `
+                <div class="list-item">
+                    <div class="list-header">
+                        <span class="truck-type">${TRUCK_TYPES[truck.type].name}</span>
+                        <span style="color:#888;">Garage</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Employees
+            const employeeList = document.getElementById('employee-list');
+            employeeList.innerHTML = gameState.employees.map(emp => `
+                <div class="list-item">
+                    <div class="list-header">
+                        <span>${emp.name}</span>
+                        <span class="employee-badge badge-${emp.tier}">${emp.tier}</span>
+                    </div>
+                    <div class="list-info">
+                        <span>XP: ${emp.experience}</span>
+                        <span>$${EMPLOYEE_TIERS[emp.tier].wage}/mo</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Destinations
+            const destList = document.getElementById('destination-list');
+            destList.innerHTML = DESTINATIONS.map((dest, i) => `
+                <div class="destination-card ${i === gameState.selectedDestination ? 'selected' : ''}" onclick="selectDestination(${i})">
+                    <div class="dest-name">${dest.name}</div>
+                    <div class="dest-rate">Base rate: $${dest.baseRate}</div>
+                    <div class="dest-distance">Modifier: ×${dest.distanceMod}</div>
+                </div>
+            `).join('');
+            
+            // Orders
+            const orderList = document.getElementById('order-list');
+            const availableOrders = gameState.orders.filter(o => o.status === 'available');
+            orderList.innerHTML = availableOrders.slice(0, 5).map(order => `
+                <div class="list-item">
+                    <div class="list-header">
+                        <span>${order.pickupDest} → ${order.dropoffDest}</span>
+                        <span style="color:#ffd700;">$${order.reward}</span>
+                    </div>
+                    <div class="list-info">
+                        <span>${order.priority.toUpperCase()}</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            if (availableOrders.length > 5) {
+                orderList.innerHTML += `<div style="text-align:center; color:#888; font-size:10px;">+${availableOrders.length - 5} more orders</div>`;
+            }
         }
 
-        function clearWaypoints() {
-            gameState.waypoints = [];
-            drawWaypoints();
-            updateWaypointList();
+        // ==================== INTERACTION ====================
+        function selectDestination(index) {
+            gameState.selectedDestination = index;
+            updateUI();
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            event.target.classList.add('active');
         }
 
         function setSpeed(value) {
-            gameState.truck.speed = parseInt(value);
+            gameState.gameSpeed = parseInt(value);
         }
 
-        function togglePause() {
-            gameState.paused = !gameState.paused;
+        function showMarketplace() { document.getElementById('marketplace-modal').style.display = 'flex'; }
+        function closeMarketplace() { document.getElementById('marketplace-modal').style.display = 'none'; }
+
+        // Notifications
+        function notify(message, type = 'info') {
+            const container = document.getElementById('notifications');
+            const notif = document.createElement('div');
+            notif.className = 'notification';
+            notif.style.borderLeftColor = type === 'error' ? '#ff6b6b' : type === 'success' ? '#4ecca3' : '#6d4aff';
+            notif.innerHTML = `<strong>${type.toUpperCase()}:</strong> ${message}`;
+            container.appendChild(notif);
+            
+            setTimeout(() => {
+                notif.style.animation = 'slideIn 0.3s reverse';
+                setTimeout(() => notif.remove(), 300);
+            }, 4000);
         }
 
-        // ==================== DRAWING ====================
-        function drawGrid() {
-            const ctx = gameState.ctx;
-            ctx.strokeStyle = 'rgba(109, 74, 255, 0.1)';
-            ctx.lineWidth = 1;
-            
-            for (let x = 0; x < gameState.width; x += 50) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, gameState.height);
-                ctx.stroke();
-            }
-            for (let y = 0; y < gameState.height; y += 50) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(gameState.width, y);
-                ctx.stroke();
-            }
-        }
-
-        function drawTruck() {
-            const ctx = gameState.ctx;
-            const t = gameState.truck;
-            
-            // Truck body
-            ctx.fillStyle = '#4ecca3';
-            ctx.fillRect(t.x - 15, t.y - 10, 30, 20);
-            
-            // Cab
-            ctx.fillStyle = '#6d4aff';
-            ctx.fillRect(t.x - 15, t.y - 10, 10, 20);
-            
-            // Cargo indication
-            ctx.fillStyle = `rgb(${t.load * 50}, ${100 - t.load * 15}, 0)`;
-            for (let i = 0; i < t.load && i < 5; i++) {
-                ctx.fillRect(t.x - 5 + i * 4, t.y - 5, 3, 3);
-            }
-        }
-
-        function drawOrders() {
-            const ctx = gameState.ctx;
-            
-            gameState.orders.forEach(order => {
-                // Pickup point
-                if (order.state === 'pickup_pending') {
-                    ctx.fillStyle = '#ff6b6b';
-                    ctx.beginPath();
-                    ctx.arc(order.pickupX, order.pickupY, 12, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 14px Courier New';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('PICKUP', order.pickupX, order.pickupY - 15);
-                }
-                
-                // Dropoff point
-                if (order.state === 'pickup_ready') {
-                    ctx.fillStyle = '#4ecdc4';
-                    ctx.beginPath();
-                    ctx.arc(order.dropoffX, order.dropoffY, 12, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 14px Courier New';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('DROP', order.dropoffX, order.dropoffY - 15);
-                }
-            });
-        }
-
-        function drawPath() {
-            const ctx = gameState.ctx;
-            const t = gameState.truck;
-            
-            if (t.targetX !== t.x || t.targetY !== t.y) {
-                ctx.strokeStyle = 'rgba(109, 74, 255, 0.5)';
-                ctx.setLineDash([5, 5]);
-                ctx.beginPath();
-                ctx.moveTo(t.x, t.y);
-                ctx.lineTo(t.targetX, t.targetY);
-                ctx.stroke();
-                ctx.setLineDash([]);
-            }
-        }
-
-        // ==================== UPDATE LOOP ====================
-        function update() {
-            if (gameState.paused || gameState.gameOver) return;
-            
-            const t = gameState.truck;
-            const dx = t.targetX - t.x;
-            const dy = t.targetY - t.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            if (dist < 5) {
-                t.x = t.targetX;
-                t.y = t.targetY;
-                
-                // Check order completion
-                checkOrderCompletion();
-                
-                // Auto-pick next order
-                if (t.load === 0 && gameState.orders.some(o => o.state === 'pickup_pending')) {
-                    assignNextPickup();
-                } else if (t.load > 0 && gameState.orders.some(o => o.state === 'pickup_ready')) {
-                    assignNextDropoff();
-                }
-            } else {
-                t.x += (dx / dist) * t.speed;
-                t.y += (dy / dist) * t.speed;
-            }
-            
-            updateStats();
-        }
-
-        function checkOrderCompletion() {
-            const t = gameState.truck;
-            
-            gameState.orders.forEach(order => {
-                if (order.state === 'pickup_pending') {
-                    const d = Math.hypot(t.x - order.pickupX, t.y - order.pickupY);
-                    if (d < 15 && t.load < t.capacity) {
-                        order.state = 'pickup_ready';
-                        t.load++;
-                        showMessage("Picked up!", `Load: ${t.load}/${t.capacity}`);
-                    }
-                } else if (order.state === 'pickup_ready') {
-                    const d = Math.hypot(t.x - order.dropoffX, t.y - order.dropoffY);
-                    if (d < 15 && t.load > 0) {
-                        order.state = 'delivered';
-                        t.load--;
-                        gameState.completedOrders++;
-                        
-                        if (gameState.completedOrders >= gameState.maxOrders) {
-                            endGame(true);
-                        }
-                        
-                        updateStats();
-                    }
-                }
-            });
-            
-            // Clean up delivered orders
-            gameState.orders = gameState.orders.filter(o => o.state !== 'delivered');
-        }
-
-        function assignNextPickup() {
-            const order = gameState.orders.find(o => o.state === 'pickup_pending');
-            if (order) {
-                gameState.truck.targetX = order.pickupX;
-                gameState.truck.targetY = order.pickupY;
-                document.getElementById('truck-status').textContent = 'Heading to pickup...';
-            }
-        }
-
-        function assignNextDropoff() {
-            const order = gameState.orders.find(o => o.state === 'pickup_ready');
-            if (order) {
-                gameState.truck.targetX = order.dropoffX;
-                gameState.truck.targetY = order.dropoffY;
-                document.getElementById('truck-status').textContent = 'Delivering cargo...';
-            }
-        }
-
-        // ==================== UI HELPERS ====================
         function showMessage(title, text) {
             document.getElementById('message-title').textContent = title;
             document.getElementById('message-text').textContent = text;
             document.getElementById('message-overlay').style.display = 'block';
-            setTimeout(() => {
-                document.getElementById('message-overlay').style.display = 'none';
-            }, 1500);
         }
 
-        function endGame(victory) {
-            gameState.gameOver = true;
-            document.getElementById('message-title').textContent = victory ? '🎉 Victory!' : '💀 Game Over';
-            document.getElementById('message-text').textContent = 
-                `You delivered ${gameState.completedOrders}/${gameState.maxOrders} orders`;
-            document.getElementById('message-overlay').style.display = 'block';
-        }
-
-        function restartGame() {
-            resetGame();
-        }
-
-        // ==================== MAIN LOOP ====================
-        function animate() {
-            const ctx = gameState.ctx;
-            
-            // Clear canvas
-            ctx.fillStyle = '#0f3460';
-            ctx.fillRect(0, 0, gameState.width, gameState.height);
-            
-            // Draw game elements
-            drawGrid();
-            drawPath();
-            drawOrders();
-            drawWaypoints();
-            drawTruck();
-            
-            // Update game state
-            update();
-            
-            requestAnimationFrame(animate);
+        function closeMessage() {
+            document.getElementById('message-overlay').style.display = 'none';
         }
     </script>
 </body>
