@@ -23,7 +23,7 @@
         #top-bar {
             display: flex; align-items: center; justify-content: space-between;
             height: 44px; padding: 0 12px; background: #16213e;
-            border-bottom: 1px solid #2a2a4e; flex-shrink: 0;
+            border-bottom: 1px solid #2a2a4e; flex-shrink: 0; z-index: 10;
         }
         .top-stat { display: flex; align-items: center; gap: 4px; font-size: 11px; }
         .top-stat .label { color: #888; font-size: 9px; }
@@ -63,7 +63,7 @@
         .card.selected { border-color: #4ecca3; background: #1e2e4e; }
         .card-row { display: flex; justify-content: space-between; align-items: center; }
         .card-title { font-size: 12px; font-weight: bold; }
-        .card-sub { font-size: 9px; color: #888; margin-top: 2px; }
+        .card-sub { font-size: 9px; color: #888; margin-top: 4px; }
         .card-reward { color: #ffd700; font-weight: bold; font-size: 13px; }
         .section-label { font-size: 9px; color: #6d4aff; text-transform: uppercase; margin: 8px 0 4px; }
         .empty-msg { text-align: center; color: #666; font-size: 11px; padding: 16px; }
@@ -135,30 +135,813 @@
     <div class="tab-content" id="tab-shop"><div id="shop-cards"></div></div>
 </div>
 
-<script type="module">
-import { initGameState, saveGame, loadGame, resetGame } from './js/state.js';
-import { initUI, updateAll, showToast } from './js/ui.js';
-import { generateOrders, assignTrucksToOrder, handleDeliveryCompletion, getOrderDeadlineProgress } from './js/orders.js';
-import { createTruck, buyTruck, deployTruckFromGarage, getCompatibleTrucksForOrder, selectTrucksForOrder } from './js/fleet.js';
-import { hireDriver, getDailyWages, getDailyMaintenance, promoteDriver, getDriverEfficiency } from './js/employees.js';
-import { FREIGHT_TYPES, TRUCK_TYPES, LOCATIONS, GAME_CONFIG } from './js/config.js';
+<!-- ALL GAME CODE IN ONE SCRIPT -->
+<script>
+// ============================================
+// CONFIGURATION
+// ============================================
+const FREIGHT_TYPES = {
+    bulk:    { id: 'bulk',    name: 'Bulk Goods',    color: '#f4a460', icon: '⚒️', unit: 'tons' },
+    container: { id: 'container', name: 'Container Cargo', color: '#3498db', icon: '📦', unit: 'TEU' },
+    cool:    { id: 'cool',    name: 'Refrigerated', color: '#4ecca3', icon: '❄️', unit: 'pallets' },
+    special: { id: 'special', name: 'Special Cargo', color: '#9b59b6', icon: '⚠️', unit: 'units' }
+};
 
-// Export to window for module access
-window.initGameState = initGameState;
-window.updateAll = updateAll;
-window.showToast = showToast;
-window.generateOrders = generateOrders;
-window.assignTrucksToOrder = assignTrucksToOrder;
-window.handleDeliveryCompletion = handleDeliveryCompletion;
-window.getOrderDeadlineProgress = getOrderDeadlineProgress;
-window.buyTruck = buyTruck;
-window.deployTruckFromGarage = deployTruckFromGarage;
-window.hireDriver = hireDriver;
-window.selectOrderForAssignment = selectTrucksForOrder;
-window.getCompatibleTrucksForOrder = getCompatibleTrucksForOrder;
-window.getDriverEfficiency = getDriverEfficiency;
+const TRUCK_TYPES = {
+    dump_truck:     { name: 'Dump Truck',      german: 'Kipper',       baseCost: 2000, capacity: 3, compatible: ['bulk'], speed: 4, color: '#95a5a6', maintenance: 50 },
+    dry_van:        { name: 'Dry Van',         german: 'Trockenwagen', baseCost: 3500, capacity: 8, compatible: ['container'], speed: 5, color: '#3498db', maintenance: 80 },
+    reefer:         { name: 'Refrigerated',    german: 'Kühlfahrzeug', baseCost: 6000, capacity: 6, compatible: ['cool'], speed: 4.5, color: '#4ecca3', maintenance: 150 },
+    flatbed:        { name: 'Flatbed',         german: 'Tieflader',    baseCost: 4500, capacity: 4, compatible: ['special'], speed: 3.5, color: '#9b59b6', maintenance: 100 },
+    semi_container: { name: 'Semi Container',  german: 'Auflieger-Container', baseCost: 8000, capacity: 15, compatible: ['container','bulk'], speed: 4, color: '#2ecc71', maintenance: 180 },
+    heavy_hauler:   { name: 'Heavy Hauler',    german: 'Schwertransport', baseCost: 15000, capacity: 20, compatible: ['special','container'], speed: 2.5, color: '#e74c3c', maintenance: 350 }
+};
+
+const LOCATIONS = {
+    downtown:  { name: 'Downtown Depot',  x: 0.25, y: 0.35, freight: ['container'] },
+    industrial:{ name: 'Industrial Park', x: 0.72, y: 0.65, freight: ['bulk','special','container'] },
+    port:      { name: 'Port Terminal',   x: 0.18, y: 0.75, freight: ['bulk','container','cool'] },
+    airport:   { name: 'Airport Cargo',   x: 0.80, y: 0.22, freight: ['cool','container','special'] },
+    suburb:    { name: 'Suburban Hub',    x: 0.50, y: 0.50, freight: ['container','cool'] },
+    quarry:    { name: 'Quarry Site',     x: 0.15, y: 0.15, freight: ['bulk'] },
+    farm:      { name: 'Agricultural Center', x: 0.85, y: 0.80, freight: ['bulk','cool'] }
+};
+
+const GAME_CONFIG = {
+    startingBalance: 5000,
+    maxFleetSize: 15,
+    orderRefreshInterval: 8000,
+    dayLengthTicks: 3600,
+    hireDriverCost: 500,
+    deadlinePenaltyPerHour: 0.05
+};
+
+const DRIVER_NAMES = ['Alex Weber', 'Jordan Becker', 'Taylor Müller', 'Casey Schmidt', 'Sam Fischer', 'Riley Wagner'];
+
+// ============================================
+// GAME STATE
+// ============================================
+const G = {
+    balance: 5000,
+    totalRevenue: 0,
+    day: 1,
+    tickCount: 0,
+    fleet: [],
+    garage: [],
+    drivers: [],
+    orders: [],
+    canvas: null,
+    ctx: null,
+    W: 0,
+    H: 0,
+    truckIdCounter: 0,
+    orderIdCounter: 0,
+    lastOrderTime: 0,
+    paused: false,
+    gameSpeed: 1.0
+};
+
+// ============================================
+// INITIALIZATION
+// ============================================
+window.onload = () => {
+    G.canvas = document.getElementById('canvas');
+    G.ctx = G.canvas.getContext('2d');
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
+    // Starter truck + driver
+    G.fleet.push({
+        id: ++G.truckIdCounter,
+        type: 'dry_van',
+        x: 0.5, y: 0.5,
+        tx: 0.5, ty: 0.5,
+        state: 'idle',
+        empIdx: 0,
+        currentOrder: null
+    });
+    
+    G.drivers.push({ id: 1, name: DRIVER_NAMES[0], tier: 'newbie', xp: 0 });
+    
+    // Setup tabs
+    setupTabs();
+    
+    // Start game loop
+    animate();
+    generateOrders();
+    updateAll();
+    
+    // Periodic orders
+    setInterval(generateOrders, GAME_CONFIG.orderRefreshInterval);
+    
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+    
+    console.log('Game initialized!');
+};
+
+function resizeCanvas() {
+    const wrap = document.getElementById('main-wrap');
+    const dpr = window.devicePixelRatio || 1;
+    G.W = wrap.clientWidth;
+    G.H = wrap.clientHeight;
+    G.canvas.width = G.W * dpr;
+    G.canvas.height = G.H * dpr;
+    G.canvas.style.width = G.W + 'px';
+    G.canvas.style.height = G.H + 'px';
+    G.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+// ============================================
+// TABS
+// ============================================
+function setupTabs() {
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+    });
+}
+
+// ============================================
+// ORDERS SYSTEM
+// ============================================
+function generateOrders() {
+    const now = Date.now();
+    if (now - G.lastOrderTime < GAME_CONFIG.orderRefreshInterval) return;
+    
+    const existingAvailable = G.orders.filter(o => o.status === 'available').length;
+    if (existingAvailable >= 15) return;
+    
+    const numOrders = 1 + Math.floor(Math.random() * 2);
+    const freightKeys = Object.keys(FREIGHT_TYPES);
+    
+    for (let i = 0; i < numOrders && G.orders.length < 20; i++) {
+        const ftId = freightKeys[Math.floor(Math.random() * freightKeys.length)];
+        const ft = FREIGHT_TYPES[ftId];
+        
+        // Find compatible locations
+        const compatLocs = Object.values(LOCATIONS).filter(loc => loc.freight.includes(ftId));
+        if (compatLocs.length < 2) continue;
+        
+        const origin = compatLocs[Math.floor(Math.random() * compatLocs.length)];
+        let dest = compatLocs[Math.floor(Math.random() * compatLocs.length)];
+        while (dest === origin && compatLocs.length > 1) {
+            dest = compatLocs[Math.floor(Math.random() * compatLocs.length)];
+        }
+        
+        // Generate units (1-20 depending on type)
+        const unitRanges = { bulk: [5,20], container: [3,15], cool: [2,10], special: [1,8] };
+        const range = unitRanges[ftId];
+        const units = Math.floor(range[0] + Math.random() * (range[1] - range[0]));
+        
+        // Calculate reward
+        const dist = Math.sqrt(Math.pow(dest.x - origin.x, 2) + Math.pow(dest.y - origin.y, 2));
+        const baseRates = { bulk: 15, container: 25, cool: 40, special: 60 };
+        const reward = Math.round(units * baseRates[ftId] * (50 + dist * 100) * (0.9 + Math.random() * 0.3));
+        
+        // Deadline (4-72 hours)
+        const deadline = Math.floor(4 + Math.random() * 68);
+        
+        G.orders.push({
+            id: ++G.orderIdCounter,
+            freightType: ftId,
+            freightTypeName: ft.name,
+            freightIcon: ft.icon,
+            units: units,
+            unitName: ft.unit,
+            origin: { id: origin.id, name: origin.name, x: origin.x, y: origin.y },
+            destination: { id: dest.id, name: dest.name, x: dest.x, y: dest.y },
+            reward: reward,
+            deadline: deadline,
+            createdAt: Date.now(),
+            status: 'available',
+            assignedTrucks: [],
+            completedBy: []
+        });
+    }
+    
+    G.lastOrderTime = now;
+    showToast('New orders available!', 'info');
+    updateAll();
+}
+
+function getCompatibleTrucksForFreight(freightType) {
+    return G.fleet.filter(t => t.state === 'idle' && TRUCK_TYPES[t.type].compatible.includes(freightType));
+}
+
+function getTruckCapacitySum(trucks) {
+    return trucks.reduce((sum, t) => sum + TRUCK_TYPES[t.type].capacity, 0);
+}
+
+function assignTrucksToOrder(order, trucks) {
+    if (!trucks || trucks.length === 0) {
+        showToast('No trucks selected!', 'error');
+        return false;
+    }
+    
+    // Verify compatibility
+    for (const t of trucks) {
+        if (!TRUCK_TYPES[t.type].compatible.includes(order.freightType)) {
+            showToast(`${TRUCK_TYPES[t.type].german} incompatible with ${order.freightTypeName}!`, 'error');
+            return false;
+        }
+    }
+    
+    // Check total capacity
+    const totalCap = getTruckCapacitySum(trucks);
+    if (totalCap < order.units) {
+        showToast(`Capacity ${totalCap} too low for order (${order.units} ${order.unitName})!`, 'error');
+        return false;
+    }
+    
+    // Assign
+    order.status = 'in_transit';
+    order.assignedTrucks = trucks.map(t => t.id);
+    
+    trucks.forEach(truck => {
+        truck.state = 'delivering';
+        truck.tx = order.destination.x;
+        truck.ty = order.destination.y;
+        truck.currentOrder = order.id;
+    });
+    
+    showToast(`${trucks.length} truck(s) → ${order.destination.name}`, 'success');
+    updateAll();
+    return true;
+}
+
+function handleDeliveryCompletion(truck) {
+    const order = G.orders.find(o => o.id === truck.currentOrder);
+    if (!order) {
+        truck.state = 'idle';
+        truck.currentOrder = null;
+        return;
+    }
+    
+    if (!order.completedBy.includes(truck.id)) {
+        order.completedBy.push(truck.id);
+    }
+    
+    // Check if all trucks delivered
+    const totalCap = getTruckCapacitySum(
+        G.fleet.filter(t => order.assignedTrucks.includes(t.id))
+    );
+    
+    if (totalCap >= order.units) {
+        // Calculate penalty
+        const elapsed = Date.now() - order.createdAt;
+        const deadlineMs = order.deadline * 3600 * 1000;
+        let penalty = 0;
+        
+        if (elapsed > deadlineMs) {
+            const hoursLate = (elapsed - deadlineMs) / (3600 * 1000);
+            penalty = Math.round(order.reward * Math.min(hoursLate * GAME_CONFIG.deadlinePenaltyPerHour, 1.0));
+        }
+        
+        const finalReward = order.reward - penalty;
+        G.balance += finalReward;
+        G.totalRevenue += finalReward;
+        
+        // Give XP to drivers
+        order.completedBy.forEach(tid => {
+            const t = G.fleet.find(tr => tr.id === tid);
+            if (t && G.drivers[t.empIdx]) {
+                G.drivers[t.empIdx].xp += Math.round(finalReward / order.completedBy.length);
+                promoteDriver(G.drivers[t.empIdx]);
+            }
+        });
+        
+        // Remove order
+        G.orders = G.orders.filter(o => o.id !== order.id);
+        
+        // Release trucks
+        order.assignedTrucks.forEach(tid => {
+            const tr = G.fleet.find(t => t.id === tid);
+            if (tr) {
+                tr.state = 'idle';
+                tr.currentOrder = null;
+            }
+        });
+        
+        const msg = penalty > 0 ? `+$${finalReward} (-${penalty} late)` : `+$${finalReward}`;
+        showToast(`Delivered! ${msg}`, 'success');
+    } else {
+        showToast(`Partial delivery to ${order.destination.name}`, 'info');
+    }
+    
+    truck.state = 'idle';
+    truck.currentOrder = null;
+    updateAll();
+}
+
+function getOrderDeadlineProgress(order) {
+    const elapsed = Date.now() - order.createdAt;
+    const deadlineMs = order.deadline * 3600 * 1000;
+    const progress = elapsed / deadlineMs;
+    return {
+        percentRemaining: Math.max(0, (1 - progress) * 100),
+        isWarning: progress > 0.7,
+        isOverdue: progress > 1
+    };
+}
+
+// ============================================
+// FLEET MANAGEMENT
+// ============================================
+function createTruck(type) {
+    return {
+        id: ++G.truckIdCounter,
+        type,
+        x: 0.3 + Math.random() * 0.4,
+        y: 0.3 + Math.random() * 0.4,
+        tx: 0.3 + Math.random() * 0.4,
+        ty: 0.3 + Math.random() * 0.4,
+        state: 'idle',
+        empIdx: G.fleet.length,
+        currentOrder: null
+    };
+}
+
+function buyTruck(type) {
+    const config = TRUCK_TYPES[type];
+    
+    if (G.balance < config.baseCost) {
+        showToast('Insufficient funds!', 'error');
+        return;
+    }
+    
+    if (G.fleet.length + G.garage.length >= GAME_CONFIG.maxFleetSize) {
+        showToast('Fleet at max capacity!', 'error');
+        return;
+    }
+    
+    G.balance -= config.baseCost;
+    G.garage.push({ type });
+    
+    showToast(`Purchased ${config.german}! Deploy from Fleet.`, 'success');
+    
+    // Auto-deploy if spare driver
+    if (G.drivers.length > G.fleet.length) {
+        deployTruckFromGarage(G.garage.length - 1);
+    }
+    
+    updateAll();
+}
+
+function deployTruckFromGarage(garageIdx) {
+    if (G.drivers.length <= G.fleet.length) {
+        showToast('No available drivers! Hire more.', 'error');
+        return;
+    }
+    
+    const item = G.garage.splice(garageIdx, 1)[0];
+    const truck = createTruck(item.type);
+    G.fleet.push(truck);
+    
+    showToast(`${TRUCK_TYPES[item.type].german} deployed!`, 'success');
+    updateAll();
+}
+
+function selectTrucksForOrder(orderId) {
+    const order = G.orders.find(o => o.id === orderId);
+    if (!order || order.status !== 'available') return;
+    
+    const compatible = getCompatibleTrucksForFreight(order.freightType);
+    
+    if (compatible.length === 0) {
+        showToast('No compatible trucks available!', 'error');
+        return;
+    }
+    
+    const totalCap = getTruckCapacitySum(compatible);
+    
+    if (totalCap < order.units) {
+        showToast(`Total capacity (${totalCap}) too low for order (${order.units} ${order.unitName})!`, 'error');
+        return;
+    }
+    
+    // Auto-select minimum trucks needed
+    let trucks = [];
+    let capSum = 0;
+    for (const t of compatible) {
+        trucks.push(t);
+        capSum += TRUCK_TYPES[t.type].capacity;
+        if (capSum >= order.units) break;
+    }
+    
+    if (assignTrucksToOrder(order, trucks)) {
+        showToast(`Assigned ${trucks.length} truck(s) to order`, 'success');
+    }
+}
+
+// ============================================
+// EMPLOYEE MANAGEMENT
+// ============================================
+function hireDriver() {
+    if (G.balance < GAME_CONFIG.hireDriverCost) {
+        showToast(`Need $${GAME_CONFIG.hireDriverCost} to hire!`, 'error');
+        return;
+    }
+    
+    if (G.drivers.length >= GAME_CONFIG.maxFleetSize) {
+        showToast('Maximum drivers reached!', 'error');
+        return;
+    }
+    
+    G.balance -= GAME_CONFIG.hireDriverCost;
+    
+    const driver = {
+        id: G.drivers.length + 1,
+        name: DRIVER_NAMES[Math.floor(Math.random() * DRIVER_NAMES.length)],
+        tier: 'newbie',
+        xp: 0
+    };
+    
+    G.drivers.push(driver);
+    showToast(`Hired ${driver.name}!`, 'success');
+    
+    // Auto-deploy garage truck if available
+    if (G.garage.length > 0 && G.drivers.length > G.fleet.length) {
+        deployTruckFromGarage(0);
+    }
+    
+    updateAll();
+}
+
+function promoteDriver(driver) {
+    const thresholds = { newbie: 1500, experienced: 4000 };
+    
+    if (driver.tier === 'newbie' && driver.xp >= thresholds.newbie) {
+        driver.tier = 'experienced';
+        showToast(`${driver.name} → Experienced!`, 'success');
+    } else if (driver.tier === 'experienced' && driver.xp >= thresholds.experienced) {
+        driver.tier = 'expert';
+        showToast(`${driver.name} → Expert!`, 'success');
+    }
+}
+
+function getDriverEfficiency(driver) {
+    const eff = { newbie: 1.0, experienced: 1.3, expert: 1.6 };
+    return eff[driver?.tier || 'newbie'];
+}
+
+function getDailyWages() {
+    const wages = { newbie: 300, experienced: 600, expert: 1000 };
+    return G.drivers.reduce((sum, d) => sum + wages[d.tier], 0);
+}
+
+function getDailyMaintenance() {
+    return G.fleet.reduce((sum, t) => sum + TRUCK_TYPES[t.type].maintenance, 0);
+}
+
+// ============================================
+// GAME LOOP
+// ============================================
+function animate() {
+    draw();
+    update();
+    requestAnimationFrame(animate);
+}
+
+function update() {
+    if (G.paused) return;
+    
+    G.tickCount++;
+    
+    // Day counter
+    if (G.tickCount % GAME_CONFIG.dayLengthTicks === 0) {
+        G.day++;
+        showToast(`Day ${G.day} started`, 'info');
+        generateOrders();
+    }
+    
+    // Update truck positions
+    G.fleet.forEach(truck => {
+        if (truck.state === 'idle') return;
+        
+        const config = TRUCK_TYPES[truck.type];
+        const driver = G.drivers[truck.empIdx];
+        const efficiency = getDriverEfficiency(driver);
+        const speed = config.speed * efficiency * G.gameSpeed;
+        
+        const dx = truck.tx - truck.x;
+        const dy = truck.ty - truck.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist < 0.02) {
+            handleDeliveryCompletion(truck);
+        } else {
+            truck.x += (dx / dist) * speed;
+            truck.y += (dy / dist) * speed;
+        }
+    });
+}
+
+function draw() {
+    const ctx = G.ctx;
+    
+    // Clear
+    ctx.fillStyle = '#0f3460';
+    ctx.fillRect(0, 0, G.W, G.H);
+    
+    // Grid
+    ctx.strokeStyle = 'rgba(109,74,255,0.08)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < G.W; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, G.H); ctx.stroke();
+    }
+    for (let y = 0; y < G.H; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(G.W, y); ctx.stroke();
+    }
+    
+    // Locations
+    Object.values(LOCATIONS).forEach(loc => {
+        const x = loc.x * G.W;
+        const y = loc.y * G.H;
+        
+        const glow = ctx.createRadialGradient(x, y, 0, x, y, 50);
+        glow.addColorStop(0, 'rgba(109,74,255,0.2)');
+        glow.addColorStop(1, 'transparent');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(x, y, 50, 0, Math.PI*2); ctx.fill();
+        
+        ctx.fillStyle = '#6d4aff';
+        ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI*2); ctx.fill();
+        
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(loc.name, x, y - 18);
+    });
+    
+    // Orders on map
+    G.orders.forEach(order => {
+        if (order.status !== 'available' && order.status !== 'in_transit') return;
+        
+        const ft = FREIGHT_TYPES[order.freightType];
+        const pulse = 1 + Math.sin(Date.now() / 400) * 0.15;
+        
+        // Pickup
+        ctx.fillStyle = order.status === 'in_transit' ? '#ffd700' : ft.color;
+        ctx.beginPath();
+        ctx.arc(order.origin.x * G.W, order.origin.y * G.H, 6 * pulse, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Dropoff
+        ctx.fillStyle = '#f39c12';
+        ctx.beginPath();
+        ctx.arc(order.destination.x * G.W, order.destination.y * G.H, 6 * pulse, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Units
+        ctx.fillStyle = '#ffd700';
+        ctx.font = '8px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${order.units}${order.unitName}`, order.origin.x * G.W, order.origin.y * G.H - 12);
+        
+        // Warning
+        const dl = getOrderDeadlineProgress(order);
+        if (dl.isWarning || dl.isOverdue) {
+            ctx.fillStyle = '#ff6b6b';
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText('⚠', order.origin.x * G.W, order.origin.y * G.H + 4);
+        }
+    });
+    
+    // Trucks
+    G.fleet.forEach(truck => {
+        const config = TRUCK_TYPES[truck.type];
+        const size = truck.type === 'heavy_hauler' ? 16 : (truck.type === 'semi_container' ? 14 : 10);
+        
+        ctx.shadowColor = config.color;
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = config.color;
+        ctx.fillRect(truck.x * G.W - size, truck.y * G.H - size/2, size * 2, size);
+        ctx.shadowBlur = 0;
+        
+        // Status dot
+        ctx.fillStyle = truck.state === 'idle' ? '#4ecca3' : '#ff6b6b';
+        ctx.beginPath();
+        ctx.arc(truck.x * G.W - size - 3, truck.y * G.H, 3, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Route line
+        if (truck.state === 'delivering') {
+            ctx.strokeStyle = 'rgba(109,74,255,0.4)';
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(truck.x * G.W, truck.y * G.H);
+            ctx.lineTo(truck.tx * G.W, truck.ty * G.H);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+    });
+}
+
+// ============================================
+// UI RENDERING
+// ============================================
+function updateAll() {
+    renderTopBar();
+    renderOrderCards();
+    renderFleetCards();
+    renderStaffCards();
+    renderShopCards();
+    renderOrderBadge();
+}
+
+function renderTopBar() {
+    document.getElementById('balance').textContent = `$${G.balance.toLocaleString()}`;
+    document.getElementById('revenue').textContent = `$${G.totalRevenue.toLocaleString()}`;
+    document.getElementById('day-num').textContent = G.day;
+    document.getElementById('truck-count').textContent = `${G.fleet.length}/${GAME_CONFIG.maxFleetSize}`;
+    document.getElementById('driver-count').textContent = G.drivers.length;
+}
+
+function renderOrderCards() {
+    const container = document.getElementById('order-cards');
+    const available = G.orders.filter(o => o.status === 'available');
+    
+    if (available.length === 0) {
+        container.innerHTML = '<div class="empty-msg">No orders available. Waiting...</div>';
+        return;
+    }
+    
+    container.innerHTML = available.map(order => {
+        const dl = getOrderDeadlineProgress(order);
+        const compat = getCompatibleTrucksForFreight(order.freightType);
+        const totalCap = getTruckCapacitySum(compat);
+        const canComplete = totalCap >= order.units;
+        
+        return `
+            <div class="card ${!canComplete ? 'unavailable' : ''}" onclick="selectTrucksForOrder(${order.id})">
+                <div class="card-row">
+                    <span class="card-title">${order.freightIcon} ${order.origin.name} → ${order.destination.name}</span>
+                    <span class="card-reward">$${order.reward.toLocaleString()}</span>
+                </div>
+                <div class="card-sub">
+                    ${order.units} ${order.unitName} | Deadline: ${order.deadline}h
+                </div>
+                <div class="card-row" style="margin-top:4px;">
+                    <span class="badge badge-${dl.isOverdue ? 'danger' : (dl.isWarning ? 'warning' : 'info')}">
+                        ${dl.isOverdue ? 'OVERDUE' : `${Math.ceil(dl.percentRemaining)}% left`}
+                    </span>
+                    <span class="card-sub">Trucks: ${compat.length} (${totalCap}/${order.units})</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderFleetCards() {
+    const container = document.getElementById('fleet-cards');
+    
+    if (G.fleet.length === 0 && G.garage.length === 0) {
+        container.innerHTML = '<div class="empty-msg">No trucks. Visit Shop.</div>';
+        return;
+    }
+    
+    let html = '';
+    
+    if (G.fleet.length > 0) {
+        html += '<div class="section-label">Active Fleet</div>';
+        html += G.fleet.map((truck, idx) => {
+            const config = TRUCK_TYPES[truck.type];
+            const driver = G.drivers[idx];
+            const eff = getDriverEfficiency(driver);
+            
+            const stateLabel = truck.state === 'idle' ? '🟢 IDLE' : 
+                               truck.state === 'delivering' ? '🚛 DELIVERING' : truck.state;
+            const compatIcons = config.compatible.map(f => FREIGHT_TYPES[f]?.icon || '?').join('/');
+            
+            return `
+                <div class="card ${truck.state !== 'idle' ? 'busy' : ''}">
+                    <div class="card-row">
+                        <span class="card-title">
+                            <span class="truck-icon" style="background:${config.color}"></span>
+                            ${config.german}
+                        </span>
+                        <span class="card-sub">${stateLabel}</span>
+                    </div>
+                    <div class="card-row" style="margin-top:4px;">
+                        <span class="card-sub">${compatIcons}</span>
+                        <span class="badge badge-${driver ? driver.tier : 'newbie'}">${driver ? driver.name.split(' ')[0] : '—'}</span>
+                        <span class="badge" style="background:${eff > 1 ? '#4ecca3' : '#555'}">${(eff*100).toFixed(0)}%</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    if (G.garage.length > 0) {
+        html += '<div class="section-label">In Garage</div>';
+        html += G.garage.map((item, idx) => `
+            <div class="card">
+                <div class="card-row">
+                    <span class="card-title">
+                        <span class="truck-icon" style="background:${TRUCK_TYPES[item.type].color}"></span>
+                        ${TRUCK_TYPES[item.type].german}
+                    </span>
+                    <button class="btn btn-buy" style="width:auto;padding:4px 10px;font-size:10px;" onclick="deployTruckFromGarage(${idx})">Deploy</button>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    container.innerHTML = html;
+}
+
+function renderStaffCards() {
+    const container = document.getElementById('staff-cards');
+    const wages = { newbie: 300, experienced: 600, expert: 1000 };
+    
+    if (G.drivers.length > 0) {
+        container.innerHTML = '<div class="section-label">Drivers</div>' +
+            G.drivers.map(d => `
+                <div class="card busy">
+                    <div class="card-row">
+                        <span class="card-title">${d.name}</span>
+                        <span class="badge badge-${d.tier}">${d.tier}</span>
+                    </div>
+                    <div class="card-sub">XP: ${d.xp} | Wage: $${wages[d.tier]}/day</div>
+                </div>
+            `).join('') + `
+                <div style="margin-top:12px;">
+                    <button class="btn btn-buy" onclick="hireDriver()">Hire Driver ($${GAME_CONFIG.hireDriverCost})</button>
+                    <div class="card-sub" style="text-align:center;margin-top:4px;">${G.drivers.length}/${GAME_CONFIG.maxFleetSize}</div>
+                </div>
+            `;
+    } else {
+        container.innerHTML = `
+            <div class="empty-msg">No drivers hired yet.</div>
+            <div style="margin-top:12px;">
+                <button class="btn btn-buy" onclick="hireDriver()">Hire Driver ($${GAME_CONFIG.hireDriverCost})</button>
+            </div>
+        `;
+    }
+}
+
+function renderShopCards() {
+    const container = document.getElementById('shop-cards');
+    
+    container.innerHTML = Object.entries(TRUCK_TYPES).map(([key, config]) => {
+        const canAfford = G.balance >= config.baseCost;
+        const hasSpace = G.fleet.length + G.garage.length < GAME_CONFIG.maxFleetSize;
+        const disabled = !(canAfford && hasSpace);
+        
+        const freqIcons = config.compatible.map(f => FREIGHT_TYPES[f]?.icon || '?').join('/');
+        
+        return `
+            <div class="card">
+                <div class="card-row">
+                    <span class="card-title">
+                        <span class="truck-icon" style="background:${config.color}"></span>
+                        ${config.german}
+                    </span>
+                    <span class="card-reward">$${config.baseCost.toLocaleString()}</span>
+                </div>
+                <div class="card-sub">Cap: ${config.capacity} | Speed: ${config.speed} | Maint: $${config.maintenance}/day</div>
+                <div class="card-sub">Freq: ${freqIcons}</div>
+                <button class="btn btn-buy" style="margin-top:6px;" ${disabled ? 'disabled' : ''} onclick="buyTruck('${key}')">
+                    ${disabled ? (!canAfford ? 'Need $$' : 'Full') : 'Purchase'}
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderOrderBadge() {
+    const count = G.orders.filter(o => o.status === 'available').length;
+    const badge = document.getElementById('order-badge');
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline' : 'none';
+}
+
+// ============================================
+// TOAST NOTIFICATIONS
+// ============================================
+function showToast(message, type) {
+    const area = document.getElementById('toast-area');
+    const el = document.createElement('div');
+    el.className = `toast ${type || ''}`;
+    el.textContent = message;
+    area.appendChild(el);
+    
+    setTimeout(() => {
+        el.classList.add('fadeout');
+        setTimeout(() => el.remove(), 300);
+    }, 3000);
+    
+    // Limit max 3
+    while (area.children.length > 3) {
+        area.removeChild(area.firstChild);
+    }
+}
 </script>
-
-<script src="js/main.js"></script>
 </body>
 </html>
