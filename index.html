@@ -116,16 +116,16 @@ var FT = {
   special: { name: 'Special', icon: '⚠️', unit: 'unt' }
 };
 
-// 5 TRUCK TIERS - Each 2x cost
+// 5 TRUCK TIERS - RANDOM CAPACITY AND SPEED PER TIER
 var TT = {
-  t1: { name: 'Basic Van', cost: 2000, capBase: 3, capVar: 2, speed: 3, color: '#888', maint: 30, compat: ['bulk', 'container'] },
-  t2: { name: 'Standard Truck', cost: 4000, capBase: 6, capVar: 3, speed: 4, color: '#6d4aff', maint: 60, compat: ['bulk', 'container', 'cool'] },
-  t3: { name: 'Premium Trailer', cost: 8000, capBase: 10, capVar: 5, speed: 5, color: '#3498db', maint: 120, compat: ['all'] },
-  t4: { name: 'Executive Semi', cost: 16000, capBase: 18, capVar: 7, speed: 6, color: '#4ecca3', maint: 240, compat: ['all'] },
-  t5: { name: 'Elite Mega', cost: 32000, capBase: 30, capVar: 10, speed: 7, color: '#ffd700', maint: 480, compat: ['all'] }
+  t1: { name: 'Basic Van', cost: 2000, capMin: 2, capMax: 5, speedMin: 2, speedMax: 4, color: '#888', maint: 30, compat: ['bulk', 'container'] },
+  t2: { name: 'Standard Truck', cost: 4000, capMin: 5, capMax: 9, speedMin: 3, speedMax: 5, color: '#6d4aff', maint: 60, compat: ['bulk', 'container', 'cool'] },
+  t3: { name: 'Premium Trailer', cost: 8000, capMin: 8, capMax: 14, speedMin: 4, speedMax: 6, color: '#3498db', maint: 120, compat: ['all'] },
+  t4: { name: 'Executive Semi', cost: 16000, capMin: 14, capMax: 22, speedMin: 5, speedMax: 7, color: '#4ecca3', maint: 240, compat: ['all'] },
+  t5: { name: 'Elite Mega', cost: 32000, capMin: 22, capMax: 35, speedMin: 6, speedMax: 8, color: '#ffd700', maint: 480, compat: ['all'] }
 };
 
-// 5 DRIVER TIERS - Each 2x wage
+// 5 DRIVER TIERS
 var DT = {
   d1: { name: 'Novice', wage: 200, speedMod: 0.8, bonus: 0 },
   d2: { name: 'Qualified', wage: 400, speedMod: 1.0, bonus: 1 },
@@ -134,7 +134,7 @@ var DT = {
   d5: { name: 'Legend', wage: 3200, speedMod: 1.3, bonus: 8 }
 };
 
-// 5 HUB TIERS - Each 2x cost
+// 5 HUB TIERS
 var HUB = {
   h1: { name: 'Small Depot', cost: 5000, capacity: 3, maint: 100 },
   h2: { name: 'Regional Hub', cost: 10000, capacity: 6, maint: 200 },
@@ -152,7 +152,7 @@ var COMPANIES = [
   { name: 'Retail Chain Global', ft: ['container', 'cool'], signFee: 1200, weeklyVol: 200, finePct: 0.30 }
 ];
 
-// CITIES/LOCATIONS ON MAP (VISIBLE!)
+// CITIES/LOCATIONS ON MAP
 var LOC = {
   downtown: { name: 'Downtown', x: 0.25, y: 0.38, ft: ['container'] },
   industrial: { name: 'Industrial', x: 0.75, y: 0.68, ft: ['bulk', 'special', 'container'] },
@@ -175,7 +175,8 @@ var CFG = {
   latePct: 0.5,
   finePct: 0.25,
   fuelPerTrip: 0.15,
-  repairAmt: 30
+  repairAmt: 30,
+  WEEK_START_DAY: 1  // Day when week starts
 };
 
 // ======================
@@ -202,7 +203,8 @@ var G = {
   hubId: 0,
   lastOrderTime: 0,
   dispatchTruckId: 0,
-  driverTruckId: 0
+  driverTruckId: 0,
+  lastWeeklyCheck: 0  // Track when we last checked weekly goals
 };
 
 // ======================
@@ -216,13 +218,18 @@ function uid(type) {
   return 0;
 }
 
+// Create truck with RANDOM stats within tier range
 function createTruck(tierKey) {
   var cfg = TT[tierKey];
-  var cap = Math.floor(cfg.capBase + Math.random() * cfg.capVar);
+  // Random capacity within tier range
+  var cap = Math.floor(cfg.capMin + Math.random() * (cfg.capMax - cfg.capMin));
+  // Random speed within tier range  
+  var speed = cfg.speedMin + Math.random() * (cfg.speedMax - cfg.speedMin);
   return {
     id: uid('truck'),
     type: tierKey,
     capacity: cap,
+    speed: speed,
     x: 0.5, y: 0.5,
     tx: 0.5, ty: 0.5,
     state: 'idle',
@@ -293,6 +300,7 @@ window.onload = function() {
   G.fleet[0].homeHub = G.hubs[0].id;
   G.fleet[0].tx = G.hubs[0].x;
   G.fleet[0].ty = G.hubs[0].y;
+  G.lastWeeklyCheck = 1; // Initialize
   
   renderAll();
   startGame();
@@ -332,7 +340,7 @@ window.buyTruck = function(tierKey) {
   var hub = G.hubs[0];
   if (hub) { t.x = hub.x; t.y = hub.y; t.tx = hub.x; t.ty = hub.y; }
   G.fleet.push(t);
-  toast('Bought ' + cfg.name + '!', 'success');
+  toast('Bought ' + cfg.name + ' (Cap: ' + t.capacity + ', Speed: ' + t.speed.toFixed(1) + ')!', 'success');
   renderFleet();
   renderShop();
   renderTopBar();
@@ -406,12 +414,12 @@ window.acceptOrder = function(oid) {
   o.acceptedTick = G.tick;
   G.orders = G.orders.filter(function(x) { return x.id !== oid; });
   G.orders.push(o);
-  toast('Order accepted! Dispatch from Fleet.', 'success');
+  toast('Order accepted! Dispatch ONE truck per trip from Fleet.', 'success');
   renderOrders();
 };
 
 // ======================
-// DISPATCH SYSTEM - MANUAL ONLY
+// DISPATCH SYSTEM - MANUAL ONLY, NO AUTO-LOOP
 // ======================
 window.openDispatch = function(truckId) {
   G.dispatchTruckId = truckId;
@@ -422,7 +430,7 @@ window.openDispatch = function(truckId) {
   var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
   
   document.getElementById('dispatch-info').innerHTML =
-    '<b>' + cfg.name + '</b> (Cap: ' + t.capacity + ') | Fuel: ' + Math.round(t.fuel * 100) + '% | Damage: ' + Math.round(t.damage) + '%' +
+    '<b>' + cfg.name + '</b> (Cap: ' + t.capacity + ', Speed: ' + t.speed.toFixed(1) + ') | Fuel: ' + Math.round(t.fuel * 100) + '% | Damage: ' + Math.round(t.damage) + '%' +
     '<br>Driver: ' + (drv ? drv.name + ' (' + DT[drv.type].name + ')' : '<span style="color:#ff6b6b">NONE</span>');
   
   var list = document.getElementById('dispatch-items');
@@ -432,12 +440,13 @@ window.openDispatch = function(truckId) {
     if (drv) {
       var acts = G.orders.filter(function(o) { return o.status === 'accepted'; });
       if (acts.length > 0) {
-        html += '<div class="section-lbl">Available Orders</div>';
+        html += '<div class="section-lbl">⚡ Dispatch TO PICKUP (ONE TRIP ONLY)</div>';
         acts.forEach(function(o) {
           var ok = cfg.compat.indexOf(o.ft) >= 0 || cfg.compat.indexOf('all') >= 0;
+          var remaining = o.units - o.delivered;
           html += '<div class="dispatch-item" ontouchstart="dispatchToPickup('+t.id+','+o.id+')" onclick="dispatchToPickup('+t.id+','+o.id+')">' +
             '<span>' + FT[o.ft].icon + ' ' + o.from.name + ' → ' + o.to.name + '</span><br>' +
-            '<span style="color:#ffd700">$' + o.reward + ' | ' + o.units + FT[o.ft].unit + '</span>' +
+            '<span style="color:#ffd700">$' + o.reward + ' | Carry: ' + Math.min(t.capacity, remaining) + '/' + remaining + ' ' + FT[o.ft].unit + '</span>' +
             (ok ? '' : '<br><span style="color:#ff6b6b;font-size:9px">Incompatible</span>') +
             '</div>';
         });
@@ -448,7 +457,7 @@ window.openDispatch = function(truckId) {
       html += '<div class="empty-msg"><span style="color:#ff6b6b">Assign driver first!</span></div>';
     }
     
-    html += '<div class="section-lbl">Return to Hub</div>';
+    html += '<div class="section-lbl">🏠 Return to Hub</div>';
     G.hubs.forEach(function(h) {
       html += '<div class="dispatch-item" ontouchstart="returnToHub('+t.id+','+h.id+')" onclick="returnToHub('+t.id+','+h.id+')">🏠 ' + h.name + '</div>';
     });
@@ -486,7 +495,7 @@ window.dispatchToPickup = function(tid, oid) {
   o.assignedTrucks = o.assignedTrucks || [];
   if (o.assignedTrucks.indexOf(t.id) < 0) o.assignedTrucks.push(t.id);
   
-  toast('Dispatched to ' + o.from.name + '!', 'success');
+  toast('Dispatched to ' + o.from.name + ' (ONE TRIP ONLY)', 'success');
   closeModal('dispatch-modal');
   renderFleet();
   renderOrders();
@@ -530,7 +539,7 @@ window.openDriver = function(truckId) {
   var cur = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
   
   document.getElementById('driver-info').innerHTML =
-    '<b>' + cfg.name + '</b> (Cap: ' + t.capacity + ')' +
+    '<b>' + cfg.name + '</b> (Cap: ' + t.capacity + ', Speed: ' + t.speed.toFixed(1) + ')' +
     '<br>Current: ' + (cur ? cur.name + ' (' + DT[cur.type].name + ')' : '<span style="color:#ff6b6b">None</span>');
   
   var list = document.getElementById('driver-items');
@@ -612,7 +621,7 @@ function generateOrders() {
 }
 
 // ======================
-// MOVE & ARRIVAL
+// MOVE & ARRIVAL - NO AUTO-LOOP
 // ======================
 function handleArrival(t) {
   if (t.state === 'to_pickup') {
@@ -658,7 +667,7 @@ function handleArrival(t) {
       
       toast('ORDER COMPLETE! +$' + reward + (late ? ' (LATE)' : ''), 'success');
       
-      // Release trucks
+      // Release trucks - THEY GO IDLE, NO AUTO-RETURN
       o.assignedTrucks.forEach(function(tid) {
         var tr = G.fleet.find(function(x) { return x.id === tid; });
         if (tr) { tr.state = 'idle'; tr.orderId = null; }
@@ -667,11 +676,10 @@ function handleArrival(t) {
       G.orders = G.orders.filter(function(x) { return x.id !== o.id; });
       
     } else {
-      // Partial delivery - return to pickup
-      t.state = 'to_pickup';
-      t.tx = o.from.x;
-      t.ty = o.from.y;
-      toast('Partial: ' + o.delivered + '/' + o.units, 'info');
+      // *** NO AUTO-LOOP *** - Truck goes IDLE, player must manually dispatch again!
+      toast('DELIVERED ' + o.delivered + '/' + o.units + ' units. Player must dispatch truck AGAIN!', 'info');
+      t.state = 'idle';
+      t.orderId = null;
     }
     
   } else if (t.state === 'returning') {
@@ -683,7 +691,7 @@ function handleArrival(t) {
       var cost = Math.round(h.maint * 0.1);
       G.cash -= cost;
       if (t.assignedDriver !== null) {
-        G.drivers[t.assignedDriver].xp += 5; // Bonus for resting
+        G.drivers[t.assignedDriver].xp += 5;
       }
       toast('Refueled & repaired at ' + h.name + ' (-$' + cost + ')', 'info');
     }
@@ -709,24 +717,21 @@ function promoteDriver(d) {
 }
 
 // ======================
-// DRAWING - SHOWS CITIES!
+// DRAWING
 // ======================
 function draw() {
   var ctx = G.ctx;
   var W = G.W, H = G.H;
   if (W === 0 || H === 0) return;
   
-  // Background
   ctx.fillStyle = '#0f3460';
   ctx.fillRect(0, 0, W, H);
   
-  // Grid
   ctx.strokeStyle = 'rgba(109,74,255,0.08)';
   ctx.lineWidth = 1;
   for (var x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
   for (var y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
   
-  // HUBS (Green circles)
   G.hubs.forEach(function(h) {
     var hx = h.x * W, hy = h.y * H;
     ctx.fillStyle = 'rgba(78,204,163,0.25)';
@@ -739,7 +744,6 @@ function draw() {
     ctx.fillText(h.name, hx, hy - 18);
   });
   
-  // LOCATIONS/CITIES (Blue circles with names - VISIBLE!)
   Object.entries(LOC).forEach(function(kv) {
     var l = kv[1], lx = l.x * W, ly = l.y * H;
     ctx.fillStyle = 'rgba(109,74,255,0.15)';
@@ -755,7 +759,6 @@ function draw() {
     ctx.fillText(l.ft.map(function(f) { return FT[f].icon; }).join(' '), lx, ly + 20);
   });
   
-  // Orders (pickup/dropoff points)
   G.orders.forEach(function(o) {
     if (o.status !== 'in_transit') return;
     var opx = o.from.x * W, opy = o.from.y * H;
@@ -766,7 +769,6 @@ function draw() {
     ctx.beginPath(); ctx.arc(dpox, dpoy, 6, 0, Math.PI * 2); ctx.fill();
   });
   
-  // TRUCKS
   G.fleet.forEach(function(t) {
     var cfg = TT[t.type];
     var sz = t.type === 't5' ? 14 : (t.type === 't4' ? 12 : (t.type === 't3' ? 10 : 8));
@@ -777,17 +779,14 @@ function draw() {
     ctx.fillRect(t.x * W - sz, t.y * H - sz / 2, sz * 2, sz);
     ctx.shadowBlur = 0;
     
-    // Status indicator (fuel/damage warning)
     ctx.fillStyle = (t.fuel < 0.3 || t.damage > 60) ? '#ff6b6b' : '#4ecca3';
     ctx.beginPath(); ctx.arc(t.x * W - sz - 2, t.y * H, 3, 0, Math.PI * 2); ctx.fill();
     
-    // Cargo indicator
     if (t.cargo > 0) {
       ctx.fillStyle = '#4ecca3';
       ctx.fillRect(t.x * W - sz + 3, t.y * H - 2, 4, 4);
     }
     
-    // Route line
     if (t.state !== 'idle' && t.state !== 'returning') {
       ctx.strokeStyle = 'rgba(109,74,255,0.4)';
       ctx.setLineDash([4, 4]);
@@ -804,11 +803,16 @@ function draw() {
 function update() {
   G.tick++;
   
-  // Day cycle
+  // Day cycle - WEEKLY CHECK ONLY EVERY 7 DAYS
   if (G.tick % CFG.dayTicks === 0) {
     G.day++;
     
-    // Calculate costs
+    // Check weekly volumes ONLY ONCE PER WEEK (day 7, 14, 21...)
+    if ((G.day - CFG.WEEK_START_DAY) % 7 === 0 && G.day !== CFG.WEEK_START_DAY) {
+      checkWeeklyVolumes();
+    }
+    
+    // Daily costs (always)
     var wages = G.drivers.reduce(function(s, d) { return s + DT[d.type].wage; }, 0);
     var maint = G.fleet.reduce(function(s, t) { return s + TT[t.type].maint; }, 0);
     var hubMaint = G.hubs.reduce(function(s, h) { return s + h.maint; }, 0);
@@ -816,9 +820,6 @@ function update() {
     
     G.cash -= total;
     toast('Day ' + G.day + ' | Expenses: $' + total, 'info');
-    
-    // Weekly check (every 7 days)
-    checkWeeklyVolumes();
   }
   
   // Move trucks
@@ -827,8 +828,9 @@ function update() {
     
     var cfg = TT[t.type];
     var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
+    // Use actual random speed from truck creation + driver speed modifier
     var speedMod = drv ? DT[drv.type].speedMod : 1.0;
-    var spd = cfg.speed * 0.0008 * speedMod;
+    var spd = t.speed * 0.0008 * speedMod;  // Use t.speed (randomized)
     
     var dx = t.tx - t.x;
     var dy = t.ty - t.y;
@@ -865,13 +867,13 @@ function update() {
     }
   });
   
-  // UI refresh
   G.uiTick++;
   if (G.uiTick % 20 === 0) {
     renderAll();
   }
 }
 
+// Called ONCE per week, NOT daily
 function checkWeeklyVolumes() {
   var totalFine = 0;
   G.contracts.forEach(function(c) {
@@ -881,11 +883,13 @@ function checkWeeklyVolumes() {
       var fine = Math.round(shortage * c.companyData.finePct * 100);
       totalFine += fine;
       c.active = false;
-      toast(c.company + ' MISSED goal! Fine: -$' + fine, 'error');
+      toast(c.company + ' MISSED weekly goal! Fine: -$' + fine + '. CONDISCT DISBANDED!', 'error');
     }
+    // Reset weekly counter
     c.weeklyVol = 0;
   });
   G.cash -= totalFine;
+  toast('Weekly contract check completed', 'info');
 }
 
 function animate() {
@@ -923,7 +927,6 @@ function renderOrders() {
   var c = document.getElementById('orders-list');
   var html = '';
   
-  // Pending orders
   if (G.orders.filter(function(o) { return o.status === 'pending'; }).length > 0) {
     html += '<div class="section-lbl">Pending — Tap to Accept</div>';
     html += G.orders.filter(function(o) { return o.status === 'pending'; }).map(function(o) {
@@ -937,10 +940,9 @@ function renderOrders() {
     }).join('');
   }
   
-  // Active orders
   var active = G.orders.filter(function(o) { return o.status === 'accepted' || o.status === 'in_transit'; });
   if (active.length > 0) {
-    html += '<div class="section-lbl" style="color:#f39c12">Active — Dispatch from Fleet</div>';
+    html += '<div class="section-lbl" style="color:#f39c12">Active — Dispatch Trucks MANUALLY (One Trip Per Dispatch)</div>';
     html += active.map(function(o) {
       var pct = o.units > 0 ? Math.round(o.delivered / o.units * 100) : 0;
       return '<div class="card"><div class="card-row"><span class="card-title">' + FT[o.ft].icon + ' ' + o.from.name + ' → ' + o.to.name + '</span><span class="card-reward">$' + o.reward + '</span></div>' +
@@ -965,18 +967,18 @@ function renderContracts() {
       var ri = COMPANIES.indexOf(comp);
       var can = G.cash >= comp.signFee;
       html += '<div class="contract-card"><div class="card-row"><span class="card-title">🏢 ' + comp.name + '</span><span class="card-reward">$' + comp.signFee + '</span></div>' +
-        '<div class="card-sub">Freight: ' + comp.ft.map(function(f) { return FT[f].icon; }).join(' ') + ' | Weekly Goal: ' + comp.weeklyVol + '</div>' +
+        '<div class="card-sub">Freight: ' + comp.ft.map(function(f) { return FT[f].icon; }).join(' ') + ' | Weekly Goal: ' + comp.weeklyVol + ' | Fine: ' + Math.round(comp.finePct*100) + '% of shortage</div>' +
         '<button class="btn btn-buy" ' + (can ? '' : 'disabled') + ' onclick="signContract(' + ri + ')">' + (can ? 'Sign Contract' : 'Need $' + comp.signFee) + '</button></div>';
     });
   }
   
   if (active.length > 0) {
-    html += '<div class="section-lbl">Active Contracts</div>';
+    html += '<div class="section-lbl">Active Contracts (Weekly Penalty if Goal Missed)</div>';
     active.forEach(function(con) {
       var pct = con.weeklyGoal > 0 ? Math.min(100, Math.round(con.weeklyVol / con.weeklyGoal * 100)) : 0;
       html += '<div class="contract-card' + (pct < 50 ? ' danger' : '') + '"><div class="card-row"><span class="card-title">🏭 ' + con.company + '</span>' +
         '<span class="badge badge-' + (pct < 50 ? 'err' : (pct < 80 ? 'warn' : 'ok')) + '">' + pct + '%</span></div>' +
-        '<div class="card-sub">Week: ' + con.weeklyVol + '/' + con.weeklyGoal + '</div>' +
+        '<div class="card-sub">This Week: ' + con.weeklyVol + '/' + con.weeklyGoal + '</div>' +
         '<div class="progress"><div class="progress-fill" style="width:' + pct + '%;background:' + (pct < 50 ? '#ff6b6b' : (pct < 80 ? '#f39c12' : '#4ecca3')) + '"></div></div>' +
         '<button class="btn btn-danger" onclick="cancelContract(' + con.id + ')">Cancel</button></div>';
     });
@@ -998,8 +1000,9 @@ function renderFleet() {
     var fuelWarn = t.fuel < 0.3 ? '<span style="color:#ff6b6b">⛽ LOW</span> ' : '';
     var dmgWarn = t.damage > 60 ? '<span style="color:#ff6b6b">🔧 DAMAGED</span> ' : '';
     
-    return '<div class="card" onclick="openDriver(' + t.id + ')"><div class="card-row"><span class="card-title"><span class="truck-dot" style="background:' + cfg.color + '"></span>' + cfg.name + ' (Cap:' + t.capacity + ')</span><span class="badge badge-' + (ti+1) + '">T' + (ti+1) + '</span></div>' +
-      '<div class="card-sub">' + st + ' | Fuel:' + Math.round(t.fuel * 100) + '% | Dmg:' + Math.round(t.damage) + '%</div>' +
+    return '<div class="card" onclick="openDriver(' + t.id + ')"><div class="card-row"><span class="card-title"><span class="truck-dot" style="background:' + cfg.color + '"></span>' + cfg.name + '</span><span class="badge badge-' + (ti+1) + '">T' + (ti+1) + '</span></div>' +
+      '<div class="card-sub">Cap: ' + t.capacity + ' | Speed: ' + t.speed.toFixed(1) + ' | ' + st + '</div>' +
+      '<div class="card-sub">Fuel:' + Math.round(t.fuel * 100) + '% | Dmg:' + Math.round(t.damage) + '%</div>' +
       '<div class="card-sub">' + fuelWarn + dmgWarn + 'Hub: ' + (hub ? hub.name : 'None') + '</div>' +
       '<div class="card-row" style="margin-top:4px"><span class="badge badge-' + (drv ? Object.keys(DT).indexOf(drv.type)+1 : 0) + '">' + (drv ? drv.name : 'NO DRV') + '</span>' +
       '<button class="btn btn-buy" style="width:auto;padding:3px 8px;font-size:9px" onclick="event.stopPropagation();openDispatch(' + t.id + ')">Dispatch</button></div></div>';
@@ -1014,7 +1017,7 @@ function renderDrivers() {
     var ti = Object.keys(DT).indexOf(d.type);
     return '<div class="card"><div class="card-row"><span class="card-title">' + d.name + '</span><span class="badge badge-' + (ti+1) + '">T' + (ti+1) + '</span></div>' +
       '<div class="card-sub">Wage: $' + DT[d.type].wage + '/day | XP: ' + d.xp + ' | Bonus: +' + DT[d.type].bonus + '</div>' +
-      '<div class="card-sub">Truck: ' + (t ? TT[t.type].name : 'Unassigned') + '</div></div>';
+      '<div class="card-sub">Truck: ' + (t ? TT[t.type].name + ' (Cap:' + t.capacity + ', Spd:' + t.speed.toFixed(1) + ')' : 'Unassigned') + '</div></div>';
   }).join('');
 }
 
@@ -1022,18 +1025,16 @@ function renderShop() {
   var c = document.getElementById('shop-list');
   var html = '';
   
-  // Trucks
-  html += '<div class="section-lbl">Trucks (5 Tiers, 2× Price Each)</div>';
+  html += '<div class="section-lbl">Trucks (5 Tiers, Random Stats Within Range, 2× Price Each)</div>';
   Object.keys(TT).forEach(function(key, i) {
     var cfg = TT[key];
     var can = G.cash >= cfg.cost && G.fleet.length < CFG.maxFleet;
     html += '<div class="card"><div class="card-row"><span class="card-title"><span class="truck-dot" style="background:' + cfg.color + '"></span>' + cfg.name + '</span><span class="card-reward">$' + cfg.cost.toLocaleString() + '</span></div>' +
-      '<div class="card-sub">Cap: ' + cfg.capBase + '-' + (cfg.capBase + cfg.capVar) + ' | Speed: ' + cfg.speed + ' | Maint: $' + cfg.maint + '/day</div>' +
+      '<div class="card-sub">⚡ Cap: ' + cfg.capMin + '-' + cfg.capMax + ' | Speed: ' + cfg.speedMin + '-' + cfg.speedMax + ' | Maint: $' + cfg.maint + '/day</div>' +
       '<div class="card-sub">Freight: ' + cfg.compat.map(function(f) { return FT[f] ? FT[f].icon : f; }).join('/') + '</div>' +
-      '<button class="btn btn-buy" ' + (can ? '' : 'disabled') + ' onclick="buyTruck(\'' + key + '\')">' + (can ? 'Buy' : (G.cash < cfg.cost ? 'Need $' : 'Full')) + '</button></div>';
+      '<button class="btn btn-buy" ' + (can ? '' : 'disabled') + ' onclick="buyTruck(\'' + key + '\')">' + (can ? 'Buy (Random Stats)' : (G.cash < cfg.cost ? 'Need $' : 'Full')) + '</button></div>';
   });
   
-  // Drivers
   html += '<div class="section-lbl">Drivers (5 Tiers, 2× Wage Each)</div>';
   Object.keys(DT).forEach(function(key, i) {
     var cfg = DT[key];
@@ -1044,7 +1045,6 @@ function renderShop() {
       '<button class="btn btn-buy" ' + (can ? '' : 'disabled') + ' onclick="hireDriver(\'' + key + '\')">' + (can ? 'Hire' : (G.cash < cost ? 'Need $' : 'Full')) + '</button></div>';
   });
   
-  // Hubs
   html += '<div class="section-lbl">Hubs (5 Tiers, 2× Price Each)</div>';
   Object.keys(HUB).forEach(function(key, i) {
     var cfg = HUB[key];
