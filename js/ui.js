@@ -1,266 +1,216 @@
-// js/ui.js - UI Rendering and DOM manipulation
-
-export function initUI() {
-    setupTabListeners();
-    renderTopBar();
-    renderBottomPanel();
+// ===== RENDER TOP BAR =====
+function renderTopBar() {
+  var el;
+  el = document.getElementById('balance'); if (el) el.textContent = '$' + P.balance.toLocaleString();
+  el = document.getElementById('revenue'); if (el) el.textContent = '$' + P.rev.toLocaleString();
+  el = document.getElementById('day-num'); if (el) el.textContent = P.day;
+  el = document.getElementById('contract-count');
+  if (el) el.textContent = P.contracts.filter(function(c) { return c && c.active; }).length + '/5';
+  el = document.getElementById('hub-count'); if (el) el.textContent = P.hubs.length;
 }
 
-export function renderTopBar() {
-    document.getElementById('balance').textContent = `$${GameState.balance.toLocaleString()}`;
-    document.getElementById('revenue').textContent = `$${GameState.totalRevenue.toLocaleString()}`;
-    document.getElementById('day-num').textContent = GameState.day;
-    document.getElementById('truck-count').textContent = `${GameState.fleet.length}/${GAME_CONFIG.maxFleetSize}`;
-    document.getElementById('driver-count').textContent = GameState.drivers.length;
-}
+// ===== RENDER ORDERS TAB =====
+function renderOrders() {
+  var c = document.getElementById('orders-cards');
+  if (!c) return;
+  var html = '';
 
-export function renderOrderCards() {
-    const container = document.getElementById('order-cards');
-    const available = GameState.orders.filter(o => o.status === 'available');
-    
-    if (available.length === 0) {
-        container.innerHTML = '<div class="empty-msg">No orders available. Waiting...</div>';
-        return;
-    }
-    
-    container.innerHTML = available.map(order => {
-        const deadlineInfo = getOrderDeadlineProgress(order);
-        const compatibleTrucks = getCompatibleTrucksForOrder(order);
-        const totalCapacity = compatibleTrucks.reduce((sum, t) => sum + TRUCK_TYPES[t.type].capacity, 0);
-        const canComplete = totalCapacity >= order.units;
-        
-        return `
-            <div class="card ${!canComplete ? 'unavailable' : ''}" onclick="selectOrderForAssignment(${order.id})">
-                <div class="card-row">
-                    <span class="card-title">${FREIGHT_TYPES[order.freightType].icon} ${order.origin.name} → ${order.destination.name}</span>
-                    <span class="card-reward">$${order.reward.toLocaleString()}</span>
-                </div>
-                <div class="card-sub" style="margin-top: 4px;">
-                    ${order.units} ${order.unitName} | Deadline: ${order.deadline}h
-                </div>
-                <div class="card-row" style="margin-top: 4px;">
-                    <span class="badge badge-${deadlineInfo.isOverdue ? 'danger' : (deadlineInfo.isWarning ? 'warning' : 'info')}">
-                        ${deadlineInfo.isOverdue ? 'OVERDUE' : `${Math.ceil(deadlineInfo.percentRemaining)}% left`}
-                    </span>
-                    <span class="card-sub">Available trucks: ${compatibleTrucks.length} (${totalCapacity}/${order.units} capacity)</span>
-                </div>
-            </div>
-        `;
+  // Pending orders (need to accept)
+  if (P.pendingOrders.length > 0) {
+    html += '<div class="section-label">Pending — Tap to Accept</div>';
+    html += P.pendingOrders.map(function(o) {
+      var compatCount = P.fleet.filter(function(t) {
+        return t.state === 'idle' && t.assignedDriver !== null &&
+               TT[t.type].compat.indexOf(o.ft) >= 0 && t.fuel > 0.15;
+      }).length;
+      return '<div class="card" onclick="acceptOrder(' + o.id + ')">' +
+        '<div class="card-row"><span class="card-title">' + o.ftIcon + ' ' + o.origin.name + ' → ' + o.destination.name + '</span>' +
+        '<span class="card-reward">$' + o.reward + '</span></div>' +
+        '<div class="card-sub">' + o.units + ' ' + o.unitName + ' | ' + o.company + ' | Trucks: ' + compatCount + '</div>' +
+        '</div>';
     }).join('');
-}
+  }
 
-export function renderFleetCards() {
-    const container = document.getElementById('fleet-cards');
-    
-    if (GameState.fleet.length === 0 && GameState.garage.length === 0) {
-        container.innerHTML = '<div class="empty-msg">No trucks. Visit Shop to buy one.</div>';
-        return;
-    }
-    
-    let html = '';
-    
-    // Active fleet
-    if (GameState.fleet.length > 0) {
-        html += '<div class="section-label">Active Fleet</div>';
-        html += GameState.fleet.map((truck, idx) => {
-            const config = TRUCK_TYPES[truck.type];
-            const driver = GameState.drivers[idx];
-            const efficiency = getDriverEfficiency(driver);
-            
-            let stateLabel = 'IDLE';
-            let stateEmoji = '🟢';
-            if (truck.state === 'delivering') {
-                stateLabel = 'DELIVERING';
-                stateEmoji = '🚛';
-            }
-            
-            return `
-                <div class="card ${truck.state !== 'idle' ? 'busy' : ''}">
-                    <div class="card-row">
-                        <span class="card-title">
-                            <span class="truck-icon" style="background:${config.color}"></span>
-                            ${config.german}
-                        </span>
-                        <span class="card-sub">${stateEmoji} ${stateLabel}</span>
-                    </div>
-                    <div class="card-row" style="margin-top: 4px;">
-                        <span class="card-sub">Freq: ${FREIGHT_TYPES[FREIGHT_TYPES[Object.keys(FREIGHT_TYPES).find(k => TRUCK_TYPES[truck.type].compatibleFreight.includes(Object.keys(FREIGHT_TYPES)[Object.keys(FREIGHT_TYPES).indexOf(k)])])]]?.icon || '?'}${TRUCK_TYPES[truck.type].compatibleFreight.join('/')}</span>
-                        <span class="badge badge-${driver ? driver.tier : 'newbie'}">${driver ? driver.name.split(' ')[0] : '—'}</span>
-                        <span class="badge" style="background: ${efficiency > 1 ? '#4ecca3' : '#555'}">${(efficiency * 100).toFixed(0)}%</span>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-    
-    // Garage
-    if (GameState.garage.length > 0) {
-        html += '<div class="section-label">In Garage</div>';
-        html += GameState.garage.map((item, idx) => `
-            <div class="card">
-                <div class="card-row">
-                    <span class="card-title">
-                        <span class="truck-icon" style="background:${TRUCK_TYPES[item.type].color}"></span>
-                        ${TRUCK_TYPES[item.type].german}
-                    </span>
-                    <button class="btn btn-buy" onclick="deployTruckFromGarage(${idx})">Deploy</button>
-                </div>
-            </div>
-        `).join('');
-    }
-    
-    container.innerHTML = html;
-}
-
-export function renderStaffCards() {
-    const container = document.getElementById('staff-cards');
-    
-    let html = '';
-    
-    if (GameState.drivers.length > 0) {
-        html += '<div class="section-label">Employed Drivers</div>';
-        html += GameState.drivers.map((driver, idx) => {
-            const wage = { newbie: 300, experienced: 600, expert: 1000 }[driver.tier];
-            const efficiency = getDriverEfficiency(driver);
-            
-            return `
-                <div class="card busy">
-                    <div class="card-row">
-                        <span class="card-title">${driver.name}</span>
-                        <span class="badge badge-${driver.tier}">${driver.tier}</span>
-                    </div>
-                    <div class="card-sub">XP: ${driver.xp} | Wage: $${wage}/day | Efficiency: ${(efficiency * 100).toFixed(0)}%</div>
-                </div>
-            `;
-        }).join('');
-    }
-    
-    html += `
-        <div style="margin-top: 12px;">
-            <button class="btn btn-buy" onclick="hireDriver()">Hire Driver ($${GAME_CONFIG.hireDriverCost})</button>
-            <div class="card-sub" style="text-align:center; margin-top: 4px;">
-                Slots: ${GameState.drivers.length}/${GAME_CONFIG.maxFleetSize}
-            </div>
-        </div>
-    `;
-    
-    container.innerHTML = html;
-}
-
-export function renderShopCards() {
-    const container = document.getElementById('shop-cards');
-    
-    container.innerHTML = Object.entries(TRUCK_TYPES).map(([key, config]) => {
-        const canAfford = GameState.balance >= config.baseCost;
-        const hasSpace = GameState.fleet.length + GameState.garage.length < GAME_CONFIG.maxFleetSize;
-        const disabled = !(canAfford && hasSpace);
-        
-        const freightIcons = config.compatibleFreight.map(ft => FREIGHT_TYPES[ft]?.icon || '?').join('/');
-        
-        return `
-            <div class="card">
-                <div class="card-row">
-                    <span class="card-title">
-                        <span class="truck-icon" style="background:${config.color}"></span>
-                        ${config.german}
-                    </span>
-                    <span class="card-reward">$${config.baseCost.toLocaleString()}</span>
-                </div>
-                <div class="card-sub">Cap: ${config.capacity} | Speed: ${config.speed} | Maint: $${config.maintenance}/day</div>
-                <div class="card-sub">Freq: ${freightIcons}</div>
-                <button class="btn btn-buy" style="margin-top: 6px;" ${disabled ? 'disabled' : ''} onclick="buyTruck('${key}')">
-                    ${disabled ? (!canAfford ? 'Need more $$' : 'Full Fleet') : 'Purchase'}
-                </button>
-            </div>
-        `;
+  // Active orders (accepted / in transit)
+  var active = P.activeOrders.filter(function(o) { return o.status === 'accepted' || o.status === 'in_transit'; });
+  if (active.length > 0) {
+    html += '<div class="section-label" style="color:#f39c12">Active — Dispatch from Fleet Tab</div>';
+    html += active.map(function(o) {
+      var pct = o.units > 0 ? Math.round(o.deliveredUnits / o.units * 100) : 0;
+      return '<div class="card">' +
+        '<div class="card-row"><span class="card-title">' + o.ftIcon + ' ' + o.origin.name + ' → ' + o.destination.name + '</span>' +
+        '<span class="card-reward">$' + o.reward + '</span></div>' +
+        '<div class="card-sub">' + o.deliveredUnits + '/' + o.units + ' ' + o.unitName + ' (' + pct + '%)</div>' +
+        '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%;background:#4ecca3"></div></div>' +
+        '</div>';
     }).join('');
+  }
+
+  if (html === '') html = '<div class="empty-msg">No orders. Sign contracts in Contracts tab!</div>';
+  c.innerHTML = html;
 }
 
-export function renderDayPreview() {
-    const wages = getDailyWages();
-    const maint = getDailyMaintenance();
-    const total = wages + maint;
-    
-    document.getElementById('wages-preview').textContent = `$${wages.toLocaleString()}`;
-    document.getElementById('maint-preview').textContent = `$${maint.toLocaleString()}`;
-    document.getElementById('net-preview').textContent = `-$${total.toLocaleString()}`;
+// ===== RENDER ORDER BADGE =====
+function renderOrderBadge() {
+  var n = P.pendingOrders.length;
+  var b = document.getElementById('order-badge');
+  if (b) { b.textContent = n; b.style.display = n > 0 ? 'inline' : 'none'; }
 }
 
-export function renderOrderBadge() {
-    const count = GameState.orders.filter(o => o.status === 'available').length;
-    const badge = document.getElementById('order-badge');
-    badge.textContent = count;
-    badge.style.display = count > 0 ? 'inline' : 'none';
-}
+// ===== RENDER CONTRACTS TAB =====
+function renderContracts() {
+  var c = document.getElementById('contracts-cards');
+  if (!c) return;
+  var active = P.contracts.filter(function(x) { return x && x.active; });
+  var available = COMPANIES.filter(function(comp) {
+    return !P.contracts.some(function(con) { return con && con.company === comp.name; });
+  });
+  var html = '';
 
-export function renderToast(message, type) {
-    const area = document.getElementById('toast-area');
-    const el = document.createElement('div');
-    el.className = `toast ${type || ''}`;
-    el.textContent = message;
-    area.appendChild(el);
-    
-    setTimeout(() => {
-        el.classList.add('fadeout');
-        setTimeout(() => el.remove(), 300);
-    }, 3000);
-    
-    // Limit max 3 toasts
-    while (area.children.length > 3) {
-        area.removeChild(area.firstChild);
-    }
-}
-
-function setupTabListeners() {
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            tab.classList.add('active');
-            document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
-        });
+  if (available.length > 0) {
+    html += '<div class="section-label">Available — Sign for Order Flow</div>';
+    available.forEach(function(comp) {
+      var realIdx = COMPANIES.indexOf(comp);
+      var canAfford = P.balance >= comp.signFee;
+      html += '<div class="contract-card">' +
+        '<div class="card-row"><span class="card-title">🏢 ' + comp.name + '</span><span class="card-reward">$' + comp.signFee + '</span></div>' +
+        '<div class="card-sub">Freight: ' + comp.ft.map(function(f) { return FT[f].icon; }).join(' ') +
+        ' | Daily: ' + comp.dailyVol[0] + '-' + comp.dailyVol[1] +
+        ' | Weekly: ' + comp.weeklyVol[0] + '-' + comp.weeklyVol[1] + '</div>' +
+        '<button class="btn btn-buy" ' + (canAfford ? '' : 'disabled') + ' onclick="signContract(' + realIdx + ')">' +
+        (canAfford ? 'Sign Contract' : 'Need $' + comp.signFee) + '</button></div>';
     });
+  }
+
+  if (active.length > 0) {
+    html += '<div class="section-label">Active Contracts</div>';
+    active.forEach(function(con) {
+      var pct = con.weeklyGoal > 0 ? Math.min(100, Math.round(con.weeklyVolume / con.weeklyGoal * 100)) : 0;
+      var dangerClass = pct < 50 ? ' danger' : '';
+      html += '<div class="contract-card' + dangerClass + '">' +
+        '<div class="card-row"><span class="card-title">🏭 ' + con.company + '</span>' +
+        '<span class="badge badge-' + (pct < 50 ? 'danger' : (pct < 80 ? 'warn' : 'ok')) + '">' + pct + '%</span></div>' +
+        '<div class="card-sub">Week: ' + con.weeklyVolume + '/' + con.weeklyGoal + ' | Day: ' + con.dailyVolume + '</div>' +
+        '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%;background:' +
+        (pct < 50 ? '#ff6b6b' : (pct < 80 ? '#f39c12' : '#4ecca3')) + '"></div></div>' +
+        '<button class="btn btn-danger" onclick="cancelContract(' + con.id + ')">Cancel</button></div>';
+    });
+  }
+
+  if (html === '') html = '<div class="empty-msg">No contracts. Sign one above to start getting orders!</div>';
+  c.innerHTML = html;
 }
 
-export function selectOrderForAssignment(orderId) {
-    const order = GameState.orders.find(o => o.id === orderId);
-    if (!order || order.status !== 'available') return;
-    
-    GameState.selectedOrder = order;
-    const compatible = getCompatibleTrucksForOrder(order);
-    
-    if (compatible.length === 0) {
-        notify('No compatible trucks available!', 'error');
-        return;
-    }
-    
-    const totalCapacity = compatible.reduce((sum, t) => sum + TRUCK_TYPES[t.type].capacity, 0);
-    
-    if (totalCapacity < order.units) {
-        notify(`Insufficient capacity! Need ${order.units} ${order.unitName}, have ${totalCapacity}`, 'error');
-        return;
-    }
-    
-    // Auto-select compatible trucks
-    const selected = compatible.slice(0, Math.ceil(order.units / averageTruckCapacity(compatible)));
-    if (assignTrucksToOrder(selected, order)) {
-        notify(`Assigned ${selected.length} truck(s) to order`, 'success');
-        updateAll();
-    }
+// ===== RENDER FLEET TAB =====
+function renderFleet() {
+  var c = document.getElementById('fleet-cards');
+  if (!c) return;
+  if (P.fleet.length === 0) { c.innerHTML = '<div class="empty-msg">No trucks. Buy from Shop tab!</div>'; return; }
+
+  c.innerHTML = P.fleet.map(function(t) {
+    var cfg = TT[t.type];
+    var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? P.drivers[t.assignedDriver] : null;
+    var stTxt = t.state === 'idle' ? '🟢 IDLE' :
+                t.state === 'to_pickup' ? '📍→ PICKUP' :
+                t.state === 'to_dropoff' ? '📦→ DELIVER' :
+                t.state === 'returning_hub' ? '🏠→ HUB' : 'BUSY';
+    var tierIdx = Object.keys(TT).indexOf(t.type);
+    var drvTierIdx = drv ? Object.keys(DT).indexOf(drv.type) : 0;
+    var hub = P.hubs.find(function(h) { return h.id === t.homeHub; });
+    var fuelWarn = t.fuel < 0.3 ? '<span style="color:#ff6b6b">⛽ LOW</span> ' : '';
+    var dmgWarn = t.damage > 60 ? '<span style="color:#ff6b6b">🔧 DAMAGED</span> ' : '';
+
+    return '<div class="card" onclick="openDriverModal(' + t.id + ')">' +
+      '<div class="card-row"><span class="card-title"><span class="truck-dot" style="background:' + cfg.color + '"></span>' +
+      cfg.name + ' (Cap:' + t.capacity + ')</span><span class="badge badge-' + (tierIdx + 1) + '">T' + (tierIdx + 1) + '</span></div>' +
+      '<div class="card-sub">' + stTxt + ' | Fuel:' + Math.round(t.fuel * 100) + '% | Dmg:' + Math.round(t.damage) + '%</div>' +
+      '<div class="card-sub">' + fuelWarn + dmgWarn + 'Hub: ' + (hub ? hub.name : 'None') + '</div>' +
+      '<div class="card-row" style="margin-top:4px">' +
+      '<span class="badge badge-' + (drvTierIdx + 1) + '">' + (drv ? drv.name : 'NO DRIVER') + '</span>' +
+      '<button class="btn btn-buy" style="width:auto;padding:3px 8px;font-size:9px" onclick="event.stopPropagation();openDispatchModal(' + t.id + ')">Dispatch</button>' +
+      '</div></div>';
+  }).join('');
 }
 
-function averageTruckCapacity(trucks) {
-    if (trucks.length === 0) return 1;
-    return trucks.reduce((sum, t) => sum + TRUCK_TYPES[t.type].capacity, 0) / trucks.length;
+// ===== RENDER DRIVERS TAB =====
+function renderDrivers() {
+  var c = document.getElementById('drivers-cards');
+  if (!c) return;
+  if (P.drivers.length === 0) { c.innerHTML = '<div class="empty-msg">No drivers. Hire from Shop tab!</div>'; return; }
+
+  c.innerHTML = P.drivers.map(function(d) {
+    var t = (d.truckId !== null && d.truckId !== undefined) ? P.fleet.find(function(x) { return x.id === d.truckId; }) : null;
+    var tierIdx = Object.keys(DT).indexOf(d.type);
+    return '<div class="card">' +
+      '<div class="card-row"><span class="card-title">' + d.name + '</span>' +
+      '<span class="badge badge-' + (tierIdx + 1) + '">T' + (tierIdx + 1) + ' ' + DT[d.type].name + '</span></div>' +
+      '<div class="card-sub">Wage: $' + DT[d.type].wage + '/day | XP: ' + d.xp + ' | Bonus: +' + DT[d.type].bonus + '</div>' +
+      '<div class="card-sub">Truck: ' + (t ? TT[t.type].name : 'Unassigned') + '</div>' +
+      '</div>';
+  }).join('');
 }
 
-// Export updateAll helper
-export function updateAll() {
-    renderTopBar();
-    renderOrderCards();
-    renderFleetCards();
-    renderStaffCards();
-    renderShopCards();
-    renderDayPreview();
-    renderOrderBadge();
+// ===== RENDER HUBS (inside fleet or separate) =====
+function renderHubs() {
+  // Hubs shown in fleet tab bottom or could be separate; for now just update count
+  renderTopBar();
 }
+
+// ===== RENDER SHOP TAB =====
+function renderShop() {
+  var c = document.getElementById('shop-cards');
+  if (!c) return;
+  var html = '';
+
+  // Trucks
+  html += '<div class="section-label">Trucks (5 Tiers, 2x Price)</div>';
+  Object.keys(TT).forEach(function(key, i) {
+    var cfg = TT[key];
+    var can = P.balance >= cfg.cost && P.fleet.length < CFG.maxFleet;
+    html += '<div class="card">' +
+      '<div class="card-row"><span class="card-title"><span class="truck-dot" style="background:' + cfg.color + '"></span>' + cfg.name + '</span>' +
+      '<span class="card-reward">$' + cfg.cost.toLocaleString() + '</span></div>' +
+      '<div class="card-sub">Cap: ' + cfg.capBase + '-' + (cfg.capBase + cfg.capVar) + ' | Speed: ' + cfg.speed + ' | Maint: $' + cfg.maint + '/day</div>' +
+      '<div class="card-sub">Freight: ' + cfg.compat.map(function(f) { return FT[f].icon; }).join(' ') + '</div>' +
+      '<button class="btn btn-buy" ' + (can ? '' : 'disabled') + ' onclick="buyTruck(\'' + key + '\')">' +
+      (can ? 'Buy' : (P.balance < cfg.cost ? 'Need $' : 'Full')) + '</button></div>';
+  });
+
+  // Drivers
+  html += '<div class="section-label">Drivers (5 Tiers, 2x Cost)</div>';
+  Object.keys(DT).forEach(function(key, i) {
+    var cfg = DT[key];
+    var cost = CFG.hireBase * Math.pow(2, i);
+    var can = P.balance >= cost && P.drivers.length < CFG.maxFleet;
+    html += '<div class="card">' +
+      '<div class="card-row"><span class="card-title">' + cfg.name + '</span>' +
+      '<span class="card-reward">$' + cost + '</span></div>' +
+      '<div class="card-sub">Wage: $' + cfg.wage + '/day | Speed: ' + cfg.speedMod + 'x | Bonus: +' + cfg.bonus + '</div>' +
+      '<button class="btn btn-buy" ' + (can ? '' : 'disabled') + ' onclick="hireDriver(\'' + key + '\')">' +
+      (can ? 'Hire' : (P.balance < cost ? 'Need $' : 'Full')) + '</button></div>';
+  });
+
+  // Hubs
+  html += '<div class="section-label">Hubs (5 Tiers, 2x Price)</div>';
+  Object.keys(HUB).forEach(function(key, i) {
+    var cfg = HUB[key];
+    var can = P.balance >= cfg.cost && P.hubs.length < 5;
+    html += '<div class="card">' +
+      '<div class="card-row"><span class="card-title">🏠 ' + cfg.name + '</span>' +
+      '<span class="card-reward">$' + cfg.cost.toLocaleString() + '</span></div>' +
+      '<div class="card-sub">Capacity: ' + cfg.capacity + ' trucks | Maint: $' + cfg.maint + '/day</div>' +
+      '<button class="btn btn-buy" ' + (can ? '' : 'disabled') + ' onclick="buyHub(\'' + key + '\')">' +
+      (can ? 'Buy' : (P.balance < cfg.cost ? 'Need $' : 'Full')) + '</button></div>';
+  });
+
+  c.innerHTML = html;
+}
+
+// ===== RENDER ALL =====
+function renderAll() { renderTopBar(); renderOrders(); renderOrderBadge(); renderContracts(); renderFleet(); renderDrivers(); renderShop(); }
+
+// ===== SETUP TABS ===== 
+function setupTabs() { var tabs = document.querySelectorAll('.tab'); tabs.forEach(function(tab) { tab.addEventListener('click', function() { document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); }); document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); }); this.classList.add('active'); var contentId = 'tab-' + this.dataset.tab; document.getElementById(contentId).classList.add('active'); }); }); }
+
+// ===== RESIZE CANVAS ===== 
+function resizeCanvas() { var wrap = document.getElementById('main-wrap'); if (!wrap) return; var dpr = window.devicePixelRatio || 1; P.W = wrap.clientWidth; P.H = wrap.clientHeight; P.canvas.width = P.W * dpr; P.canvas.height = P.H * dpr; P.canvas.style.width = P.W + 'px'; P.canvas.style.height = P.H + 'px'; P.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
