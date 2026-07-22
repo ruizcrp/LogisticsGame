@@ -1,187 +1,77 @@
-// js/config.js - Core game constants
-
-export const FREIGHT_TYPES = {
-    bulk: {
-        id: 'bulk',
-        name: 'Bulk Goods',
-        german: 'Schüttgut',
-        description: 'Grain, ore, coal, sand (loose materials)',
-        color: '#f4a460',
-        icon: '⚒️',
-        unit: 'tons'
-    },
-    container: {
-        id: 'container',
-        name: 'Container Cargo',
-        german: 'Containergut',
-        description: 'Boxes, pallets, electronics, furniture (standard cargo)',
-        color: '#3498db',
-        icon: '📦',
-        unit: 'TEU'
-    },
-    cool: {
-        id: 'cool',
-        name: 'Refrigerated',
-        german: 'Kühlgut',
-        description: 'Food, pharmaceuticals, perishables (temperature-controlled)',
-        color: '#4ecca3',
-        icon: '❄️',
-        unit: 'pallets'
-    },
-    special: {
-        id: 'special',
-        name: 'Special Cargo',
-        german: 'Sondergut',
-        description: 'Heavy machinery, oversized, hazardous materials',
-        color: '#9b59b6',
-        icon: '⚠️',
-        unit: 'units'
-    }
+// ===== FREIGHT TYPES =====
+var FT = {
+  bulk:     { name: 'Bulk',         icon: '⛏️', unit: 't'   },
+  container:{ name: 'Container',    icon: '📦', unit: 'TEU' },
+  cool:     { name: 'Refrigerated', icon: '❄️', unit: 'pal' },
+  special:  { name: 'Special',      icon: '⚠️', unit: 'unt' }
 };
 
-export const TRUCK_TYPES = {
-    dump_truck: {
-        id: 'dump_truck',
-        name: 'Dump Truck',
-        german: 'Kipper',
-        description: 'For bulk materials - open bed, tilts to unload',
-        baseCost: 2000,
-        capacity: 3,
-        compatibleFreight: ['bulk'],
-        speed: 4,
-        color: '#95a5a6',
-        maintenance: 50,
-        fuelCostPerKm: 0.8
-    },
-    dry_van: {
-        id: 'dry_van',
-        name: 'Dry Van',
-        german: 'Trockenwagen',
-        description: 'Enclosed trailer for standard cargo',
-        baseCost: 3500,
-        capacity: 8,
-        compatibleFreight: ['container'],
-        speed: 5,
-        color: '#3498db',
-        maintenance: 80,
-        fuelCostPerKm: 1.0
-    },
-    reefer: {
-        id: 'reefer',
-        name: 'Refrigerated Truck',
-        german: 'Kühlfahrzeug',
-        description: 'Temperature-controlled transport for perishables',
-        baseCost: 6000,
-        capacity: 6,
-        compatibleFreight: ['cool'],
-        speed: 4.5,
-        color: '#4ecca3',
-        maintenance: 150,
-        fuelCostPerKm: 1.4
-    },
-    flatbed: {
-        id: 'flatbed',
-        name: 'Flatbed Truck',
-        german: 'Tieflader',
-        description: 'Open platform for oversized/special cargo',
-        baseCost: 4500,
-        capacity: 4,
-        compatibleFreight: ['special'],
-        speed: 3.5,
-        color: '#9b59b6',
-        maintenance: 100,
-        fuelCostPerKm: 1.2
-    },
-    semi_container: {
-        id: 'semi_container',
-        name: 'Semi-Trailer Container',
-        german: 'Auflieger-Container',
-        description: 'Large container capacity for bulk orders',
-        baseCost: 8000,
-        capacity: 15,
-        compatibleFreight: ['container', 'bulk'],
-        speed: 4,
-        color: '#2ecc71',
-        maintenance: 180,
-        fuelCostPerKm: 1.6
-    },
-    heavy_hauler: {
-        id: 'heavy_hauler',
-        name: 'Heavy Hauler',
-        german: 'Schwertransport',
-        description: 'Maximum capacity for special/heavy cargo',
-        baseCost: 15000,
-        capacity: 20,
-        compatibleFreight: ['special', 'container'],
-        speed: 2.5,
-        color: '#e74c3c',
-        maintenance: 350,
-        fuelCostPerKm: 2.5
-    }
+// ===== 5 TRUCK TIERS (each 2x cost) =====
+var TT = {
+  t1: { name: 'Basic Van',       cost: 2000,  capBase: 3,  capVar: 2,  speed: 3,   color: '#888',    maint: 30,  compat: ['bulk','container'] },
+  t2: { name: 'Standard Truck',  cost: 4000,  capBase: 6,  capVar: 3,  speed: 4,   color: '#6d4aff', maint: 60,  compat: ['bulk','container','cool'] },
+  t3: { name: 'Premium Trailer', cost: 8000,  capBase: 10, capVar: 5,  speed: 5,   color: '#3498db', maint: 120, compat: ['bulk','container','cool','special'] },
+  t4: { name: 'Executive Semi',  cost: 16000, capBase: 18, capVar: 7,  speed: 6,   color: '#4ecca3', maint: 240, compat: ['container','cool','special'] },
+  t5: { name: 'Elite Mega',      cost: 32000, capBase: 30, capVar: 10, speed: 7,   color: '#ffd700', maint: 480, compat: ['bulk','container','cool','special'] }
 };
 
-export const LOCATIONS = {
-    downtown: {
-        id: 'downtown',
-        name: 'Downtown Depot',
-        x: 0.25, y: 0.35,
-        facilities: ['office', 'warehouse'],
-        freightTypes: ['container']
-    },
-    industrial: {
-        id: 'industrial',
-        name: 'Industrial Park',
-        x: 0.72, y: 0.65,
-        facilities: ['factory', 'warehouse', 'loading_dock'],
-        freightTypes: ['bulk', 'special', 'container']
-    },
-    port: {
-        id: 'port',
-        name: 'Port Terminal',
-        x: 0.18, y: 0.75,
-        facilities: ['deep_water_port', 'container_yard', 'warehouse'],
-        freightTypes: ['bulk', 'container', 'cool']
-    },
-    airport: {
-        id: 'airport',
-        name: 'Airport Cargo',
-        x: 0.80, y: 0.22,
-        facilities: ['airport', 'cold_storage'],
-        freightTypes: ['cool', 'container', 'special']
-    },
-    suburb: {
-        id: 'suburb',
-        name: 'Suburban Hub',
-        x: 0.50, y: 0.50,
-        facilities: ['warehouse', 'distribution_center'],
-        freightTypes: ['container', 'cool']
-    },
-    quarry: {
-        id: 'quarry',
-        name: 'Quarry Site',
-        x: 0.15, y: 0.15,
-        facilities: ['loading_point'],
-        freightTypes: ['bulk']
-    },
-    farm: {
-        id: 'farm',
-        name: 'Agricultural Center',
-        x: 0.85, y: 0.80,
-        facilities: ['storage_silo'],
-        freightTypes: ['bulk', 'cool']
-    }
+// ===== 5 DRIVER TIERS (each 2x wage) =====
+var DT = {
+  d1: { name: 'Novice',     wage: 200,  speedMod: 0.8, bonus: 0 },
+  d2: { name: 'Qualified',  wage: 400,  speedMod: 1.0, bonus: 1 },
+  d3: { name: 'Expert',     wage: 800,  speedMod: 1.1, bonus: 3 },
+  d4: { name: 'Master',    wage: 1600, speedMod: 1.2, bonus: 5 },
+  d5: { name: 'Legend',    wage: 3200, speedMod: 1.3, bonus: 8 }
 };
 
-export const GAME_CONFIG = {
-    startingBalance: 5000,
-    startingTrucks: 1,
-    startingDrivers: 1,
-    maxFleetSize: 15,
-    orderRefreshInterval: 8000,
-    dayLengthMs: 60000, // 1 minute real time = 1 game day
-    deadlineWarningThreshold: 0.3, // Show warning at 30% of deadline remaining
-    deadlinePenaltyPerHour: 0.05, // 5% price reduction per hour late
-    minDeadlineHours: 4,
-    maxDeadlineHours: 72,
-    hireDriverCost: 500
+// ===== 5 HUB TIERS (each 2x cost) =====
+var HUB = {
+  h1: { name: 'Small Depot',         cost: 5000,  capacity: 3,  maint: 100 },
+  h2: { name: 'Regional Hub',         cost: 10000, capacity: 6,  maint: 200 },
+  h3: { name: 'Distribution Center',  cost: 20000, capacity: 10, maint: 400 },
+  h4: { name: 'Logistics Center',     cost: 40000, capacity: 15, maint: 800 },
+  h5: { name: 'Global Hub',           cost: 80000, capacity: 25, maint: 1600 }
+};
+
+// ===== COMPANIES FOR CONTRACTS =====
+var COMPANIES = [
+  { name: 'TechCorp Industries',  ft: ['container','cool'],  dailyVol: [20,50],  weeklyVol: [100,250], signFee: 1000, finePct: 0.30 },
+  { name: 'AutoParts United',    ft: ['bulk','special'],    dailyVol: [30,70],  weeklyVol: [150,350], signFee: 1500, finePct: 0.35 },
+  { name: 'FreshFood Co',        ft: ['cool'],              dailyVol: [15,40],  weeklyVol: [75,200],  signFee: 800,  finePct: 0.25 },
+  { name: 'BuildMaterials Ltd',  ft: ['bulk','special'],    dailyVol: [40,100], weeklyVol: [200,500], signFee: 2000, finePct: 0.40 },
+  { name: 'Retail Chain Global', ft: ['container','cool'],  dailyVol: [25,60],  weeklyVol: [125,300], signFee: 1200, finePct: 0.30 }
+];
+
+// ===== LOCATIONS ON MAP =====
+var LOC = {
+  downtown:   { name: 'Downtown',   x: 0.25, y: 0.35, ft: ['container'] },
+  industrial: { name: 'Industrial', x: 0.72, y: 0.65, ft: ['bulk','special','container'] },
+  port:       { name: 'Port',       x: 0.18, y: 0.75, ft: ['bulk','container','cool'] },
+  airport:    { name: 'Airport',    x: 0.80, y: 0.22, ft: ['cool','container','special'] },
+  suburb:     { name: 'Suburb',     x: 0.50, y: 0.50, ft: ['container','cool'] },
+  quarry:     { name: 'Quarry',     x: 0.15, y: 0.15, ft: ['bulk'] },
+  farm:       { name: 'Farm',       x: 0.85, y: 0.80, ft: ['bulk','cool'] }
+};
+
+// ===== DRIVER NAMES =====
+var NAMES = [
+  'Alex Weber','Jordan Becker','Taylor Müller','Casey Schmidt',
+  'Sam Fischer','Riley Wagner','Mayer Schäfer','Quinn Schulz',
+  'Avery Koch','Parker Hoffmann','Drew Bauer','Emery Lang'
+];
+
+// ===== GAME CONFIG =====
+var CFG = {
+  startBal: 5000,
+  maxFleet: 20,
+  maxContracts: 5,
+  orderIntMs: 8000,
+  dayTicks: 3600,
+  hireBase: 300,
+  finePct: 0.25,
+  latePct: 0.5,
+  fuelPerTrip: 0.15,
+  fatiguePerTrip: 10,
+  damageChance: 0.03,
+  repairAmount: 30
 };
