@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Logistics Game</title>
+<title>Logistics Game - Contract Manager</title>
 <link rel="manifest" href="./manifest.json">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -11,9 +11,9 @@ html,body{font-family:-apple-system,'Courier New',monospace;background:#1a1a2e;c
 #top-bar{display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 12px;background:#16213e;border-bottom:1px solid #2a2a4e;flex-shrink:0;z-index:10}
 .top-stat{display:flex;align-items:center;gap:4px;font-size:11px}.top-stat .label{color:#888;font-size:9px}.top-stat .val{font-weight:bold}
 .money{color:#4ecca3}.day-val{color:#6d4aff}
-#main-wrap{display:flex;flex-direction:column;height:calc(100vh - 44px - 145px);flex:1;position:relative}
+#main-wrap{display:flex;flex-direction:column;height:calc(100vh - 44px - 150px);flex:1;position:relative}
 #canvas{width:100%;height:100%;display:block;background:#0f3460}
-#bottom-panel{height:145px;background:#16213e;border-top:1px solid #2a2a4e;display:flex;flex-direction:column;flex-shrink:0}
+#bottom-panel{height:150px;background:#16213e;border-top:1px solid #2a2a4e;display:flex;flex-direction:column;flex-shrink:0}
 #tab-bar{display:flex;height:36px;border-bottom:1px solid #2a2a4e}
 .tab{flex:1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#888;border-bottom:2px solid transparent;cursor:pointer}
 .tab.active{color:#6d4aff;border-bottom-color:#6d4aff}
@@ -21,18 +21,19 @@ html,body{font-family:-apple-system,'Courier New',monospace;background:#1a1a2e;c
 .tab-content{flex:1;overflow-y:auto;padding:6px;display:none}.tab-content.active{display:block}
 .tab-content::-webkit-scrollbar{width:4px}.tab-content::-webkit-scrollbar-thumb{background:#6d4aff;border-radius:2px}
 .card{background:#1a1a2e;border-radius:6px;padding:8px;margin-bottom:6px;border:1px solid #2a2a4e;cursor:pointer}
-.card.busy{opacity:.6}.card.selected{border-color:#4ecca3;background:#1e2e4e}
+.card.busy{opacity:.6}.card.selected{border-color:#4ecca3;background:#1e2e4e}.card.danger{border-color:#ff6b6b}
 .card-row{display:flex;justify-content:space-between;align-items:center}
 .card-title{font-size:12px;font-weight:bold}.card-sub{font-size:9px;color:#888;margin-top:2px}
 .card-reward{color:#ffd700;font-weight:bold;font-size:13px}
 .section-label{font-size:9px;color:#6d4aff;text-transform:uppercase;margin:8px 0 4px}
 .empty-msg{text-align:center;color:#666;font-size:11px;padding:16px}
 .badge{padding:1px 5px;border-radius:3px;font-size:8px;font-weight:bold}
-.badge-newbie{background:#ff6b6b;color:#fff}.badge-experienced{background:#ffd700;color:#1a1a2e}.badge-expert{background:#4ecca3;color:#1a1a2e}
-.badge-info{background:#3498db;color:#fff}.badge-warning{background:#f39c12;color:#1a1a2e}.badge-danger{background:#ff6b6b;color:#fff}.badge-ok{background:#4ecca3;color:#1a1a2e}
+.badge-1{background:#888;color:#fff}.badge-2{background:#6d4aff;color:#fff}.badge-3{background:#3498db;color:#fff}
+.badge-4{background:#4ecca3;color:#1a1a2e}.badge-5{background:#ffd700;color:#1a1a2e}
 .btn{padding:8px 12px;border:none;border-radius:6px;font-family:inherit;font-size:11px;cursor:pointer;width:100%}
-.btn-primary{background:#6d4aff;color:#fff}.btn-buy{background:#4ecca3;color:#1a1a2e}.btn-danger{background:#ff6b6b;color:#fff}.btn:disabled{background:#444;opacity:.5;cursor:not-allowed}
-#toast-area{position:fixed;bottom:155px;left:8px;right:8px;z-index:60;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:4px}
+.btn-primary{background:#6d4aff;color:#fff}.btn-buy{background:#4ecca3;color:#1a1a2e}.btn-danger{background:#ff6b6b;color:#fff}
+.btn:disabled{background:#444;opacity:.5;cursor:not-allowed}
+#toast-area{position:fixed;bottom:160px;left:8px;right:8px;z-index:60;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:4px}
 .toast{background:rgba(26,26,46,.92);border-left:3px solid #6d4aff;border-radius:6px;padding:6px 12px;font-size:10px;max-width:320px;animation:toastIn .25s ease}
 .toast.success{border-left-color:#4ecca3}.toast.error{border-left-color:#ff6b6b}.toast.info{border-left-color:#3498db}
 .toast.fadeout{animation:toastOut .3s ease forwards}
@@ -41,10 +42,11 @@ html,body{font-family:-apple-system,'Courier New',monospace;background:#1a1a2e;c
 .truck-icon{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin-right:4px}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:50;justify-content:center;align-items:center;padding:16px}
 .modal-overlay.show{display:flex}
-.modal-box{background:#1a1a2e;border:1px solid #6d4aff;border-radius:12px;padding:16px;max-width:340px;width:100%;max-height:75vh;overflow-y:auto}
-.timer-bar{height:4px;background:#333;border-radius:2px;margin-top:4px;overflow:hidden}.timer-fill{height:100%;transition:width .3s}
+.modal-box{background:#1a1a2e;border:1px solid #6d4aff;border-radius:12px;padding:16px;max-width:360px;width:100%;max-height:80vh;overflow-y:auto}
 .dispatch-row{display:flex;align-items:center;gap:8px;padding:8px;background:#16213e;border-radius:6px;margin-bottom:6px;border:1px solid #2a2a4e;cursor:pointer}
 .dispatch-row:active{border-color:#4ecca3}
+.progress-bar{height:4px;background:#333;border-radius:2px;margin-top:4px;overflow:hidden}.progress-fill{height:100%;transition:width .3s}
+.contract-info{background:#1a1a2e;border:1px solid #6d4aff;border-radius:6px;padding:8px;margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -53,8 +55,8 @@ html,body{font-family:-apple-system,'Courier New',monospace;background:#1a1a2e;c
 <div class="top-stat"><span class="label">$</span><span class="val money" id="balance">5,000</span></div>
 <div class="top-stat"><span class="label">REV</span><span class="val money" id="revenue">0</span></div>
 <div class="top-stat"><span class="label">DAY</span><span class="val day-val" id="day-num">1</span></div>
-<div class="top-stat"><span class="label">TRKS</span><span class="val" id="truck-count">1/15</span></div>
-<div class="top-stat"><span class="label">DRV</span><span class="val" id="driver-count">1</span></div>
+<div class="top-stat"><span class="label">CONTRACTS</span><span class="val" id="contract-count">0/5</span></div>
+<div class="top-stat"><span class="label">HUBS</span><span class="val" id="hub-count">0</span></div>
 </div>
 
 <div id="main-wrap">
@@ -64,26 +66,32 @@ html,body{font-family:-apple-system,'Courier New',monospace;background:#1a1a2e;c
 
 <div id="bottom-panel">
 <div id="tab-bar">
-<div class="tab active" data-tab="orders">Orders <span class="tab-badge" id="order-badge">0</span></div>
+<div class="tab active" data-tab="contracts">Contracts <span class="tab-badge" id="contract-badge">0</span></div>
 <div class="tab" data-tab="fleet">Fleet</div>
-<div class="tab" data-tab="hire">Staff</div>
+<div class="tab" data-tab="drivers">Drivers</div>
+<div class="tab" data-tab="hubs">Hubs</div>
 <div class="tab" data-tab="shop">Shop</div>
 </div>
-<div class="tab-content active" id="tab-orders"><div id="order-cards"></div></div>
+<div class="tab-content active" id="tab-contracts"><div id="contract-cards"></div></div>
 <div class="tab-content" id="tab-fleet"><div id="fleet-cards"></div></div>
-<div class="tab-content" id="tab-hire"><div id="staff-cards"></div></div>
+<div class="tab-content" id="tab-drivers"><div id="driver-cards"></div></div>
+<div class="tab-content" id="tab-hubs"><div id="hub-cards"></div></div>
 <div class="tab-content" id="tab-shop"><div id="shop-cards"></div></div>
 </div>
 
+<!-- DISPATCH MODAL -->
 <div id="dispatch-modal" class="modal-overlay">
 <div class="modal-box">
-<h3 style="color:#6d4aff;margin-bottom:8px">Dispatch ONE Truck</h3>
-<div id="dispatch-order-info" style="font-size:11px;margin-bottom:10px;color:#ccc"></div>
-<div id="dispatch-truck-list"></div>
-<div style="margin-top:10px;text-align:center"><button class="btn" style="background:#444" onclick="closeDispatchModal()">Close</button></div>
+<h3 style="color:#6d4aff;margin-bottom:8px">Select Destination</h3>
+<div id="dispatch-info" style="font-size:11px;margin-bottom:10px;color:#ccc"></div>
+<div id="destination-list"></div>
+<div style="margin-top:10px;text-align:center">
+<button class="btn" style="background:#444" onclick="closeDispatchModal()">Cancel</button>
+</div>
 </div>
 </div>
 
+<!-- DRIVER ASSIGNMENT MODAL -->
 <div id="driver-modal" class="modal-overlay">
 <div class="modal-box">
 <h3 style="color:#6d4aff;margin-bottom:8px">Assign Driver</h3>
@@ -93,68 +101,114 @@ html,body{font-family:-apple-system,'Courier New',monospace;background:#1a1a2e;c
 </div>
 </div>
 
+<!-- TRUCK ACTIONS MODAL -->
+<div id="action-modal" class="modal-overlay">
+<div class="modal-box">
+<h3 style="color:#6d4aff;margin-bottom:8px">Truck Actions</h3>
+<div id="action-truck-info" style="font-size:11px;margin-bottom:10px;color:#ccc"></div>
+<div id="action-list"></div>
+<button class="btn" style="margin-top:10px;background:#444" onclick="closeActionModal()">Close</button>
+</div>
+</div>
+
 <script>
 // ============ CONFIGURATION ============
+var TIER_NAMES = ['Basic','Standard','Premium','Executive','Elite'];
+var TIER_COLORS = ['#888','#6d4aff','#3498db','#4ecca3','#ffd700'];
 var FT={
-bulk:{name:'Bulk',color:'#f4a460',icon:'⚒️',unit:'t'},
-container:{name:'Container',color:'#3498db',icon:'📦',unit:'TEU'},
-cool:{name:'Refrigerated',color:'#4ecca3',icon:'❄️',unit:'pal'},
-special:{name:'Special',color:'#9b59b6',icon:'⚠️',unit:'unt'}
+bulk:{name:'Bulk',icon:'⚒️',unit:'t'},
+container:{name:'Container',icon:'📦',unit:'TEU'},
+cool:{name:'Refrigerated',icon:'❄️',unit:'pal'},
+special:{name:'Special',icon:'⚠️',unit:'unt'}
 };
+
+// 5 TRUCK TIERS - each 2x more expensive
 var TT={
-dump_truck:{name:'Kipper',cost:2000,cap:3,compat:['bulk'],speed:4,color:'#95a5a6',maint:50},
-dry_van:{name:'Trockenwagen',cost:3500,cap:8,compat:['container'],speed:5,color:'#3498db',maint:80},
-reefer:{name:'Kühlfahrzeug',cost:6000,cap:6,compat:['cool'],speed:4.5,color:'#4ecca3',maint:150},
-flatbed:{name:'Tieflader',cost:4500,cap:4,compat:['special'],speed:3.5,color:'#9b59b6',maint:100},
-semi:{name:'Auflieger',cost:8000,cap:15,compat:['container','bulk'],speed:4,color:'#2ecc71',maint:180},
-heavy:{name:'Schwertransport',cost:15000,cap:20,compat:['special','container'],speed:2.5,color:'#e74c3c',maint:350}
+tier1:{name:'Basic Van',cost:2000,capBase:3,capVar:2,speed:3,color:'#888',maint:30,fuel:0.5,slots:1},
+tier2:{name:'Standard Truck',cost:4000,capBase:6,capVar:3,speed:4,color:'#6d4aff',maint:60,fuel:0.8,slots:2},
+tier3:{name:'Premium Trailer',cost:8000,capBase:10,capVar:5,speed:5,color:'#3498db',maint:120,fuel:1.2,slots:3},
+tier4:{name:'Executive Semi',cost:16000,capBase:18,capVar:7,speed:6,color:'#4ecca3',maint:240,fuel:1.8,slots:4},
+tier5:{name:'Elite Mega',cost:32000,capBase:30,capVar:10,speed:7,color:'#ffd700',maint:480,fuel:3.0,slots:5}
 };
+
+// COMPATIBILITY MATRIX
+var COMPAT={
+tier1:['bulk','container'],
+tier2:['bulk','container','cool'],
+tier3:['bulk','container','cool','special'],
+tier4:['container','cool','special'],
+tier5:['all']
+};
+
+// 5 DRIVER TIERS - each 2x wage
+var DT={
+tier1:{name:'Novice',wage:200,speedMod:0.8,bonus:0,color:'#888'},
+tier2:{name:'Qualified',wage:400,speedMod:1.0,bonus:1,color:'#6d4aff'},
+tier3:{name:'Expert',wage:800,speedMod:1.1,bonus:3,color:'#3498db'},
+tier4:{name:'Master',wage:1600,speedMod:1.2,bonus:5,color:'#4ecca3'},
+tier5:{name:'Legend',wage:3200,speedMod:1.3,bonus:8,color:'#ffd700'}
+};
+
+// HUB TIERS - each 2x more expensive
+var HUB_TIER={
+basic:{name:'Small Depot',cost:5000,capacity:3,maint:100,fuelCost:0.3,repairCost:0.5},
+standard:{name:'Regional Hub',cost:10000,capacity:6,maint:200,fuelCost:0.25,repairCost:0.4},
+premium:{name:'Distribution Center',cost:20000,capacity:10,maint:400,fuelCost:0.2,repairCost:0.3},
+executive:{name:'Logistics Center',cost:40000,capacity:15,maint:800,fuelCost:0.15,repairCost:0.2},
+elite:{name:'Global Hub',cost:80000,capacity:25,maint:1600,fuelCost:0.1,repairCost:0.1}
+};
+
+var COMPANIES=[
+{name:'TechCorp Industries',ft:['container','cool'],dailyVol:[20,50],weeklyVol:[100,250],signFee:1000,finePct:0.3},
+{name:'AutoParts United',ft:['bulk','special'],dailyVol:[30,70],weeklyVol:[150,350],signFee:1500,finePct:0.35},
+{name:'FreshFood Co',ft:['cool'],dailyVol:[15,40],weeklyVol:[75,200],signFee:800,finePct:0.25},
+{name:'BuildMaterials Ltd',ft:['bulk','special'],dailyVol:[40,100],weeklyVol:[200,500],signFee:2000,finePct:0.4},
+{name:'Retail Chain Global',ft:['container','cool'],dailyVol:[25,60],weeklyVol:[125,300],signFee:1200,finePct:0.3}
+];
+
 var LOC={
 downtown:{name:'Downtown',x:.25,y:.35,ft:['container']},
 industrial:{name:'Industrial',x:.72,y:.65,ft:['bulk','special','container']},
 port:{name:'Port',x:.18,y:.75,ft:['bulk','container','cool']},
 airport:{name:'Airport',x:.80,y:.22,ft:['cool','container','special']},
-suburb:{name:'Suburb',x:.50,y:.50,ft:['container','cool']},
-quarry:{name:'Quarry',x:.15,y:.15,ft:['bulk']},
-farm:{name:'Farm',x:.85,y:.80,ft:['bulk','cool']}
+suburb:{name:'Suburb',x:.50,y:.50,ft:['container','cool']}
 };
-var NAMES=['Alex Weber','Jordan Becker','Taylor Müller','Casey Schmidt','Sam Fischer','Riley Wagner','Mayer Schäfer','Quinn Schulz'];
-var CFG={startBal:5000,maxFleet:15,orderInt:9000,dayTicks:3600,hireCost:500,finePct:0.25,latePct:0.5};
-var TIERS={newbie:{wage:300,eff:1.0},experienced:{wage:600,eff:1.3},expert:{wage:1000,eff:1.6}};
-var PROMOTE={newbie:1500,experienced:4000};
+var NAMES=['Alex Weber','Jordan Becker','Taylor Müller','Casey Schmidt','Sam Fischer','Riley Wagner','Mayer Schäfer','Quinn Schulz','Avery Koch','Parker Hoffmann'];
+var CFG={
+startBal:5000,maxFleet:20,maxContracts:5,orderInt:8000,dayTicks:3600,hireCost:300,
+minHubReq:1,sleepHours:8,fuelConsumption:0.1,repairChance:0.02
+};
 
-// ============ GAME STATE ============
+// ============ STATE ============
 var G={
-balance:5000,rev:0,day:1,tick:0,fleet:[],garage:[],drivers:[],orders:[],
-canvas:null,ctx:null,W:0,H:0,truckId:0,orderId:0,lastOrder:0,paused:false,spd:1.0,
-dispatchOrderId:0,driverTruckId:0,uiTick:0
+balance:5000,rev:0,day:1,tick:0,weekDay:1,fleet:[],garage:[],drivers:[],hubs:[],
+contracts:[],pendingOrders:[],activeOrders:[],canvas:null,ctx:null,W:0,H:0,
+truckId:0,orderId:0,lastOrder:0,lastWeekCheck:0,uiTick:0,dispatchTruckId:0,
+driverTruckId:0,actionTruckId:0
 };
 
-// ============ INITIALIZATION ============
+// ============ INIT ============
 window.onload=function(){
 G.canvas=document.getElementById('canvas');
 G.ctx=G.canvas.getContext('2d');
 resize();
 window.addEventListener('resize',resize);
 
-// Starter truck + driver
-G.fleet.push({id:++G.truckId,type:'dry_van',x:.5,y:.5,tx:.5,ty:.5,state:'idle',orderId:null,driverId:0,cargo:0});
-G.drivers.push({id:0,name:NAMES[0],tier:'newbie',xp:0,truckId:G.fleet[0].id});
+// Starter truck + driver + hub
+G.fleet.push(createTruck('tier1'));
+G.drivers.push(createDriver('tier1'));
+G.hubs.push({id:1,name:'Home Base',type:'basic',x:.5,y:.5,capacity:3,used:1,maint:100});
+G.fleet[0].homeHub=1;
+G.drivers[0].homeHub=1;
+G.contracts.push(null); // placeholder
 
-// Setup tabs
-document.querySelectorAll('.tab').forEach(function(t){
-t.addEventListener('click',function(){
-document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});
-document.querySelectorAll('.tab-content').forEach(function(x){x.classList.remove('active')});
-t.classList.add('active');
-document.getElementById('tab-'+t.dataset.tab).classList.add('active');
-})});
-
+setupTabs();
 generateOrders();
 animate();
 setInterval(generateOrders,CFG.orderInt);
 if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js').catch(function(){})}
 console.log('Game ready!');
+updateAll();
 };
 
 function resize(){
@@ -165,250 +219,357 @@ G.canvas.style.width=G.W+'px';G.canvas.style.height=G.H+'px';
 G.ctx.setTransform(dpr,0,0,dpr,0,0);
 }
 
-// ============ ORDER SYSTEM ============
+function setupTabs(){
+document.querySelectorAll('.tab').forEach(function(t){
+t.addEventListener('click',function(){
+document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});
+document.querySelectorAll('.tab-content').forEach(function(x){x.classList.remove('active')});
+t.classList.add('active');
+document.getElementById('tab-'+t.dataset.tab).classList.add('active');
+})});
+}
+
+// ============ CREATION FUNCTIONS ============
+function createTruck(tierKey){
+var cfg=TT[tierKey];
+var cap=Math.floor(cfg.capBase+Math.random()*cfg.capVar);
+return {
+id:++G.truckId,type:tierKey,capacity:cap,x:.5,y:.5,tx:.5,ty:.5,
+state:'idle',fuel:1.0,fatigue:0,damage:0,orderId:null,currentLoc:null,
+homeHub:1,assignedDriver:null,routes:[],lastHubVisit:0
+};
+}
+
+function createDriver(tierKey){
+var cfg=DT[tierKey];
+return {
+id:G.drivers.length,type:tierKey,name:NAMES[G.drivers.length%NAMES.length],
+tier:tierKey,wage:cfg.wage,speedMod:cfg.speedMod,bonus:cfg.bonus,
+xp:0,truckId:null,homeHub:1,fatigue:0,lastRest:0
+};
+}
+
+function buyHub(typeKey,x,y){
+var cfg=HUB_TIER[typeKey];
+if(G.balance<cfg.cost){showToast('Not enough money!','error');return false;}
+if(G.hubs.length>=5){showToast('Max 5 hubs!','error');return false;}
+G.balance-=cfg.cost;
+G.hubs.push({id:G.hubs.length+1,name:cfg.name,type:typeKey,x:x,y:y,capacity:cfg.capacity,used:0,maint:cfg.maint,fuelCost:cfg.fuelCost,repairCost:cfg.repairCost});
+showToast('Purchased '+cfg.name+'!','success');
+updateAll();
+return true;
+}
+
+function hireDriver(tierKey){
+var cfg=DT[tierKey];
+var cost=CFG.hireCost*Object.keys(DT).indexOf(tierKey)+1;
+if(G.balance<cost){showToast('Need $'+cost+' to hire!','error');return;}
+G.balance-=cost;
+var d=createDriver(tierKey);
+d.name=NAMES[Math.floor(Math.random()*NAMES.length)];
+G.drivers.push(d);
+showToast('Hired '+d.name+' ('+TIER_NAMES[Object.keys(DT).indexOf(tierKey)+1]+')!','success');
+updateAll();
+}
+
+// ============ CONTRACTS SYSTEM ============
+function getAvailableContracts(){
+return COMPANIES.filter(function(c){
+var existing=G.contracts.filter(function(x){return x!==null&&x.company===c.name});
+return existing.length===0&&G.contracts.filter(function(x){return x!==null}).length<CFG.maxContracts;
+});
+}
+
+function signContract(companyIdx){
+var company=COMPANIES[companyIdx];
+if(company.signFee>G.balance){showToast('Sign fee $'+company.signFee+' not affordable!','error');return;}
+G.balance-=company.signFee;
+var contract={
+id:G.contracts.filter(function(c){return c!==null}).length+1,
+company:company.name,
+companyData:company,
+dailyVolume:0,weeklyVolume:0,
+weeklyGoal:company.weeklyVol[Math.floor(Math.random()*(company.weeklyVol.length-1))+1],
+startDate:G.day,active:true,volumeHistory:[0,0,0,0,0,0,0]
+};
+G.contracts.push(contract);
+showToast('Signed contract with '+company.name+'! Weekly goal: '+contract.weeklyGoal+' units','success');
+updateAll();
+}
+
+function cancelContract(contractId){
+var c=G.contracts.find(function(x){return x!==null&&x.id===contractId});
+if(!c)return;
+c.active=false;
+showToast('Contract cancelled.','info');
+updateAll();
+}
+
+function checkWeeklyVolumes(){
+if((G.day-1)%7!==0)return; // Only on week boundary
+
+var totalFine=0;
+G.contracts.forEach(function(c){
+if(!c||!c.active)return;
+if(c.weeklyVolume<c.weeklyGoal){
+var shortage=c.weeklyGoal-c.weeklyVolume;
+var fine=Math.round(shortage*c.companyData.finePct*100);
+totalFine+=fine;
+c.dailyVolume=0;c.weeklyVolume=0;
+showToast('Contract penalty: -$'+fine+' (missed '+shortage+' units)','error');
+if(fine>G.balance*0.2){showToast('⚠️ Financial crisis! Revenue collapsed!','error');}
+}
+c.volumeHistory[G.weekDay]=c.dailyVolume;
+c.dailyVolume=0;
+});
+G.balance-=totalFine;
+G.weekDay=(G.weekDay%7)+1;
+if(totalFine>0)updateAll();
+}
+
+// ============ ORDERS SYSTEM ============
 function generateOrders(){
 var now=Date.now();
 if(now-G.lastOrder<CFG.orderInt)return;
-if(G.orders.filter(function(o){return o.status==='available'}).length>=12)return;
 
-var fk=Object.keys(FT),n=1+Math.floor(Math.random()*2);
-for(var i=0;i<n&&G.orders.length<18;i++){
-var fid=fk[Math.floor(Math.random()*fk.length)],ft=FT[fid];
-var cl=Object.values(LOC).filter(function(l){return l.ft.indexOf(fid)>=0});
-if(cl.length<2)continue;
-var orig=cl[Math.floor(Math.random()*cl.length)];
-var dest=cl[Math.floor(Math.random()*cl.length)];
-while(dest===orig&&cl.length>1)dest=cl[Math.floor(Math.random()*cl.length)];
+// Generate from active contracts
+var activeContracts=G.contracts.filter(function(c){return c!==null&&c.active});
+if(activeContracts.length===0)return;
 
-var ranges={bulk:[5,20],container:[3,15],cool:[2,10],special:[1,8]};
-var r=ranges[fid];var units=Math.floor(r[0]+Math.random()*(r[1]-r[0]));
-var dx=dest.x-orig.x,dy=dest.y-orig.y;var dist=Math.sqrt(dx*dx+dy*dy);
-var rates={bulk:15,container:25,cool:40,special:60};
-var reward=Math.round(units*rates[fid]*(50+dist*100)*(0.9+Math.random()*0.3));
-var deadTicks=Math.floor(1200+Math.random()*3600);
+activeContracts.forEach(function(c){
+if(Math.random()>0.6)return; // 40% chance per contract per interval
+var ft=c.companyData.ft[Math.floor(Math.random()*c.companyData.ft.length)];
+var compatLocs=Object.values(LOC).filter(function(l){return l.ft.indexOf(ft)>=0});
+if(compatLocs.length<2)return;
 
-G.orders.push({
-id:++G.orderId,ftId:fid,ftName:ft.name,ftIcon:ft.icon,units:units,unitName:ft.unit,
-origin:orig,destination:dest,reward:reward,deadlineTicks:deadTicks,
-acceptedAtTick:0,status:'available',deliveredUnits:0,assignedTrucks:[]
+var origin=compatLocs[Math.floor(Math.random()*compatLocs.length)];
+var dest=compatLocs[Math.floor(Math.random()*compatLocs.length)];
+while(dest===origin&&compatLocs.length>1)dest=compatLocs[Math.floor(Math.random()*compatLocs.length)];
+
+var dailyRange=c.companyData.dailyVol;
+var units=Math.floor(dailyRange[0]+Math.random()*(dailyRange[1]-dailyRange[0]));
+var reward=Math.round(units*20*(50+Math.abs(dest.x-origin.x)*100)*0.5); // Reduced reward
+
+G.pendingOrders.push({
+id:++G.orderId,company:c.company,contractId:c.id,ft:ft,ftIcon:FT[ft].icon,
+units:units,unitName:FT[ft].unit,origin:origin,destination:dest,reward:reward,
+status:'pending',truckId:null,route:[],startedAt:0
 });
-}
+});
+
 G.lastOrder=now;
-showToast('New orders available!','info');
+renderOrderBadge();
+}
+
+function acceptOrder(orderId){
+var o=G.pendingOrders.find(function(x){return x.id===orderId});
+if(!o)return;
+o.status='accepted';
+G.pendingOrders.splice(G.pendingOrders.indexOf(o),1);
+G.activeOrders.push(o);
+showToast('Order accepted! Select truck and dispatch to pickup location.','success');
 updateAll();
 }
 
-function acceptOrder(id){
-var o=G.orders.find(function(x){return x.id===id});
-if(!o||o.status!=='available')return;
-o.status='accepted';o.acceptedAtTick=G.tick;
-showToast('Order accepted! Send trucks one by one to fulfill it.','success');
-updateAll();
-}
+function openDispatchModal(truckId){
+var t=G.fleet.find(function(x){return x.id===truckId});
+if(!t)return;
+G.dispatchTruckId=truckId;
 
-function openDispatchModal(orderId){
-var o=G.orders.find(function(x){return x.id===orderId});
-if(!o||o.status!=='accepted'&&o.status!=='in_transit')return;
-G.dispatchOrderId=orderId;
+var info=document.getElementById('dispatch-info');
+info.innerHTML='<b>Truck:</b> '+TT[t.type].name+' (Cap: '+t.capacity+')[Fuel: '+Math.round(t.fuel*100)+'%]<br>'+
+'<b>Status:</b> '+t.state+(t.fuel<0.3?' <span style="color:#ff6b6b">(LOW FUEL!)</span>':'')+
+(t.damage>20?' <span style="color:#ff6b6b">(DAMAGED!)</span>':'');
 
-var compat=G.fleet.filter(function(t){
-return t.state==='idle'&&t.driverId!==null&&TT[t.type].compat.indexOf(o.ftId)>=0;
+var locations=[];
+var locationsHtml='';
+
+// If idle, show all order pickups or hub
+if(t.state==='idle'){
+locationsHtml+='<div class="section-label">Available Orders</div>';
+G.activeOrders.filter(function(o){return o.status==='accepted'}).forEach(function(o){
+locationsHtml+='<div class="dispatch-row" onclick="dispatchToLocation('+o.origin.x+','+o.origin.y+','+o.id+',\''+o.origin.name+'\')">➕ Deliver '+o.units+o.unitName+' to '+o.destination.name+'<br><span style="color:#ffd700">$'+o.reward+'</span></div>';
 });
-var info=document.getElementById('dispatch-order-info');
-info.innerHTML='<b>'+o.ftIcon+' '+o.origin.name+' → '+o.destination.name+'</b><br>'+
-'Total needed: '+o.units+' '+o.unitName+' | Delivered: '+o.deliveredUnits+'/'+o.units+'<br>'+
-'Remaining: '+(o.units-o.deliveredUnits)+' '+o.unitName+' | Reward: $'+o.reward.toLocaleString()+'<br>'+
-'<i style="color:#ffd700">Select ONE truck below to send.</i>';
-
-var list=document.getElementById('dispatch-truck-list');
-if(compat.length===0){
-list.innerHTML='<div class="empty-msg">No compatible idle trucks with drivers!</div>';
-}else{
-list.innerHTML=compat.map(function(t){
-var drv=G.drivers[t.driverId],cfg=TT[t.type];
-return '<div class="dispatch-row" onclick="sendTruck('+t.id+')">'+
-'<span class="truck-icon" style="background:'+cfg.color+'"></span>'+
-'<div style="flex:1"><div style="font-size:11px"><b>'+cfg.name+'</b> (Cap: '+cfg.cap+')</div>'+
-'<div style="font-size:9px;color:#888">Driver: '+drv.name+' ('+drv.tier+', XP:'+drv.xp+')</div></div>'+
-'<div style="color:#4ecca3;font-size:10px">→ Send</div></div>';
-}).join('');
+locationsHtml+='<div class="section-label">Return Home</div>';
+G.hubs.forEach(function(h){
+locationsHtml+='<div class="dispatch-row" onclick="dispatchToLocation('+h.x+','+h.y,0,\''+h.name+' Hub\',\'hub\', '+h.id+')">🏠 Return to '+h.name+'</div>';
+});
 }
+// If on order, show only destination
+else if(t.orderId){
+var o=G.activeOrders.find(function(x){return x.id===t.orderId});
+if(o){
+locationsHtml+='<div class="section-label">Current Order</div>';
+locationsHtml+='<div class="dispatch-row" onclick="dispatchToLocation('+o.destination.x+','+o.destination.y+','+o.id+',\''+o.destination.name+' (DELIVERY)\')">📦 Deliver '+o.units+o.unitName+' to '+o.destination.name+'</div>';
+locationsHtml+='<div class="section-label">Emergency Return</div>';
+G.hubs.forEach(function(h){
+locationsHtml+='<div class="dispatch-row" onclick="dispatchToLocation('+h.x+','+h.y,0,null,null, '+h.id+')">🏠 Abort and return to '+h.name+'</div>';
+});
+}
+}
+
+if(locationsHtml===''){locationsHtml='<div class="empty-msg">No dispatch options available.</div>';}
+document.getElementById('destination-list').innerHTML=locationsHtml;
 document.getElementById('dispatch-modal').classList.add('show');
 }
 
-function closeDispatchModal(){
-document.getElementById('dispatch-modal').classList.remove('show');
-G.dispatchOrderId=0;
+function dispatchToLocation(x,y,orderId,locationName,type,hubId){
+var t=G.fleet.find(function(x){return x.id===G.dispatchTruckId});
+if(!t)return;
+
+// Check fuel
+if(t.fuel<0.1){showToast('Truck needs fuel! Return to hub first.','error');return;}
+// Check damage
+if(t.damage>50){showToast('Truck too damaged! Repair at hub first.','error');return;}
+
+t.tx=x;t.ty=y;
+t.currentLoc=locationName;
+
+if(orderId>0&&t.state==='idle'){
+var o=G.activeOrders.find(function(x){return x.id===orderId});
+if(o){
+t.orderId=orderId;o.status='in_transit';o.startedAt=G.tick;
+t.routes.push({type:'pickup',location:o.origin.name,x:x,y:y});
+showToast('Dispatched to '+o.origin.name+' for pickup','success');
+}
+}
+else if(orderId>0&&t.state==='to_delivery'){
+t.routes.push({type:'delivery',location:locationName,x:x,y:y});
+showToast('Dispatched to '+locationName+' for delivery','success');
+}
+else if(type==='hub'&&!isNaN(hubId)){
+var h=G.hubs.find(function(x){return x.id===hubId});
+if(h){
+t.routes.push({type:'rest',location:h.name,x:x,y:y});
+t.homeHub=hubId;
+if(t.assignedDriver!==null){G.drivers[t.assignedDriver].homeHub=hubId;}
+showToast('Returning to '+h.name+' for rest/fuel/repair','info');
+}
 }
 
-function sendTruck(truckId){
-var o=G.orders.find(function(x){return x.id===G.dispatchOrderId});
-if(!o){closeDispatchModal();return;}
-var t=G.fleet.find(function(x){return x.id===truckId});
-if(!t||t.state!=='idle'||!TT[t.type].compat.includes(o.ftId)){
-showToast('Truck not available!', 'error');return;}
-if(o.deliveredUnits>=o.units){showToast('Order already complete!', 'error');closeDispatchModal();return;}
-
-t.orderId=o.id;
-t.state='to_pickup';
-t.tx=o.origin.x;t.ty=o.origin.y;
-if(o.assignedTrucks.indexOf(t.id)<0)o.assignedTrucks.push(t.id);
-o.status='in_transit';
-
-showToast(TT[t.type].name+' sent to '+o.origin.name+' (will return for more if needed)', 'success');
+t.state=t.state==='idle'?'to_pickup':(t.state==='to_pickup'?'to_delivery':t.state);
 closeDispatchModal();
 updateAll();
 }
 
-function checkExpiredOrders(){
-G.orders.forEach(function(o){
-if(o.status!=='accepted'&&o.status!=='in_transit')return;
-if(o.acceptedAtTick===0)return;
-var elapsed=G.tick-o.acceptedAtTick;
-if(elapsed>o.deadlineTicks){
-var trucksBusy=o.assignedTrucks.filter(function(tid){
-var tr=G.fleet.find(function(x){return x.id===tid});return tr&&tr.state!=='idle';
-}).length;
-var partial=o.deliveredUnits>0?Math.round(o.deliveredUnits/o.units*o.reward):0;
-
-if(partial>0){
-partial=trucksBusy>0?Math.round(partial*CFG.latePct):partial;
-G.balance+=partial;G.rev+=partial;
-showToast('Order '+o.id+' finished LATE! +$'+partial, 'error');
-}else{
-var fine=Math.round(o.reward*CFG.finePct);
-G.balance-=fine;
-showToast('Order '+o.id+' EXPIRED (no delivery)! Fine -$'+fine, 'error');
-}
-
-o.assignedTrucks.forEach(function(tid){
-var tr=G.fleet.find(function(x){return x.id===tid});
-if(tr){tr.state='idle';tr.orderId=null;tr.cargo=0;}
-});
-o.status='expired';
-}
-});
-G.orders=G.orders.filter(function(o){return o.status!=='expired'&&o.status!=='delivered'});
+function closeDispatchModal(){
+document.getElementById('dispatch-modal').classList.remove('show');
+G.dispatchTruckId=0;
 }
 
 // ============ TRUCK MOVEMENT ============
 function handleArrival(t){
-var o=G.orders.find(function(x){return x.id===t.orderId});
-if(!o){t.state='idle';t.orderId=null;t.cargo=0;return;}
+if(t.routes.length===0){t.state='idle';return;}
 
-if(t.state==='to_pickup'){
-var remaining=o.units-o.deliveredUnits;
-t.cargo=Math.min(TT[t.type].cap,remaining);
-t.state='to_dropoff';
-t.tx=o.destination.x;t.ty=o.destination.y;
-showToast(TT[t.type].name+' loaded '+t.cargo+' '+o.unitName+' → '+o.destination.name, 'info');
-}else if(t.state==='to_dropoff'){
-o.deliveredUnits+=t.cargo;
-t.cargo=0;
+var currentRoute=t.routes.shift();
 
-if(o.deliveredUnits>=o.units){
-var elapsed=G.tick-o.acceptedAtTick;
-var isLate=elapsed>o.deadlineTicks;
-var reward=o.reward;
-if(isLate)reward=Math.round(reward*CFG.latePct);
-G.balance+=reward;G.rev+=reward;
+// Fuel consumption
+t.fuel=Math.max(0,t.fuel-CFG.fuelConsumption);
+t.fatigue=Math.min(100,t.fatigue+5);
 
-o.assignedTrucks.forEach(function(tid){
-var tr=G.fleet.find(function(x){return x.id===tid});
-if(tr&&tr.driverId!==null){
-G.drivers[tr.driverId].xp+=Math.round(reward/Math.max(1,o.assignedTrucks.length));
-promoteDriver(G.drivers[tr.driverId]);
-}
-});
+// Damage chance
+if(Math.random()<CFG.repairChance)t.damage=Math.min(100,t.damage+15);
 
-o.status='delivered';
-showToast('ORDER COMPLETE! +$'+reward+(isLate?' (LATE)':''), 'success');
+// Handle by route type
+if(currentRoute.type==='pickup'||currentRoute.type==='delivery'){
+var o=G.activeOrders.find(function(x){return x.id===t.orderId});
+if(!o){t.state='idle';return;}
 
-o.assignedTrucks.forEach(function(tid){
-var tr=G.fleet.find(function(x){return x.id===tid});
-if(tr){tr.state='idle';tr.orderId=null;tr.cargo=0;}
-});
-o.assignedTrucks=[];
-G.orders=G.orders.filter(function(x){return x.id!==o.id});
+if(currentRoute.type==='pickup'){
+t.cargo=o.units;
+t.state='to_delivery';
+var nextDest=o.destination;
+t.tx=nextDest.x;t.ty=nextDest.y;
+t.currentLoc=nextDest.name;
+showToast('Loaded '+t.cargo+o.unitName+' → '+nextDest.name,'info');
 }else{
-t.state='to_pickup';
-t.tx=o.origin.x;t.ty=o.origin.y;
-showToast('Partial delivery! Going back for more...', 'info');
+// Delivery complete
+o.status='delivered';
+G.balance+=o.reward;
+G.rev+=o.reward;
+if(t.assignedDriver!==null){
+var d=G.drivers[t.assignedDriver];
+d.xp+=Math.round(o.reward/100);
+d.tierUpBonus=d.tierUpBonus||0;d.tierUpBonus++;
+updateDriverTier(d);
+}
+var c=G.contracts.find(function(x){return x!==null&&x.id===o.contractId});
+if(c){c.dailyVolume+=o.units;c.weeklyVolume+=o.units;}
+showToast('Delivered! +$'+o.reward,'success');
 }
 }
-updateAll();
+else if(currentRoute.type==='rest'){
+var h=G.hubs.find(function(x){return x.id===t.homeHub});
+if(h&&h.used<h.capacity){
+h.used++;
+t.fuel=1.0;t.fatigue=0;t.damage=Math.max(0,t.damage-30);
+var cost=Math.round(h.maint/CFG.dayTicks*h.fuelCost+t.damage*5);
+G.balance-=cost;
+if(t.assignedDriver!==null){
+var d=G.drivers[t.assignedDriver];
+d.fatigue=0;d.lastRest=G.day;
+}
+showToast('Refueled & Repaired at '+h.name+' (-$'+cost+')','info');
+}
+t.state='idle';
+t.currentLoc=h.name;
+t.routes=[];
 }
 
-// ============ FLEET MANAGEMENT ============
-function buyTruck(type){
-var cfg=TT[type];
-if(G.balance<cfg.cost){showToast('Not enough money!', 'error');return;}
-if(G.fleet.length+G.garage.length>=CFG.maxFleet){showToast('Fleet full!', 'error');return;}
-G.balance-=cfg.cost;
-G.garage.push({type:type});
-showToast('Bought '+cfg.name+'! Deploy from Fleet tab.', 'success');
-updateAll();
+// If still has routes, continue
+if(t.routes.length>0){
+var next=t.routes[0];
+t.tx=next.x;t.ty=next.y;
+t.state=next.type==='rest'?'idle':'to_delivery';
+}else{
+t.state='idle';t.orderId=null;t.cargo=0;
 }
 
-function deployTruck(idx){
-var item=G.garage[idx];if(!item)return;
-G.garage.splice(idx,1);
-var t={id:++G.truckId,type:item.type,x:.4+Math.random()*.2,y:.4+Math.random()*.2,tx:0,ty:0,state:'idle',orderId:null,driverId:null,cargo:0};
-G.fleet.push(t);
-showToast(TT[item.type].name+' deployed! Assign a driver.', 'success');
 updateAll();
 }
 
 // ============ DRIVER MANAGEMENT ============
-function hireDriver(){
-if(G.balance<CFG.hireCost){showToast('Need $'+CFG.hireCost+'!', 'error');return;}
-if(G.drivers.length>=CFG.maxFleet){showToast('Max drivers!', 'error');return;}
-G.balance-=CFG.hireCost;
-var d={id:G.drivers.length,name:NAMES[Math.floor(Math.random()*NAMES.length)],tier:'newbie',xp:0,truckId:null};
-G.drivers.push(d);
-showToast('Hired '+d.name+'!', 'success');
-updateAll();
+function updateDriverTier(d){
+var xpTable=[0,500,1500,3000,6000];
+var newTier=Object.keys(DT)[0];
+xpTable.forEach(function(xp,i){
+if(d.xp>=xp)newTier=Object.keys(DT)[i];
+});
+if(newTier!==d.tier){
+var oldTier=d.tier;d.tier=newTier;
+showToast(d.name+' promoted to '+DT[newTier].name+'!','success');
 }
-
-function promoteDriver(d){
-if(d.tier==='newbie'&&d.xp>=PROMOTE.newbie){d.tier='experienced';showToast(d.name+' → Experienced!', 'success');}
-else if(d.tier==='experienced'&&d.xp>=PROMOTE.experienced){d.tier='expert';showToast(d.name+' → Expert!', 'success');}
 }
-
-function getEff(driverId){var d=G.drivers[driverId];return d?TIERS[d.tier].eff:1.0;}
 
 function openDriverModal(truckId){
-G.driverTruckId=truckId;
 var t=G.fleet.find(function(x){return x.id===truckId});
 if(!t)return;
+G.driverTruckId=truckId;
 var cfg=TT[t.type];
-var curDrv=t.driverId!==null&&t.driverId!==undefined?G.drivers[t.driverId]:null;
+var curDrv=t.assignedDriver!==null?G.drivers[t.assignedDriver]:null;
 document.getElementById('driver-modal-truck-info').innerHTML=
 '<span class="truck-icon" style="background:'+cfg.color+'"></span><b>'+cfg.name+'</b><br>'+
-'Current driver: '+(curDrv?curDrv.name:'None');
-
+'Current driver: '+(curDrv?curDrv.name+' ('+DT[curDrv.type].name+')':'None');
 var list=document.getElementById('driver-list-modal');
 var avail=G.drivers.filter(function(d){return d.truckId===null||d.truckId===t.id});
-if(avail.length===0){list.innerHTML='<div class="empty-msg">No available drivers. Hire more!</div>';}
-else{
 list.innerHTML=avail.map(function(d){
-var isCur=t.driverId===d.id;
+var isCur=t.assignedDriver===d.id;
 return '<div class="dispatch-row'+(isCur?' selected':'')+'" onclick="assignDriver('+d.id+')">'+
 '<div style="flex:1"><div style="font-size:11px">'+d.name+(isCur?' ✓':'')+'</div>'+
-'<div style="font-size:9px;color:#888">'+d.tier+' | XP: '+d.xp+'</div></div></div>';
+'<div style="font-size:9px;color:#888">'+DT[d.type].name+' | Bonus: '+d.bonus+' | XP: '+d.xp+'</div></div>'+
+'</div>';
 }).join('');
-}
 document.getElementById('driver-modal').classList.add('show');
 }
 
 function assignDriver(driverId){
 var t=G.fleet.find(function(x){return x.id===G.driverTruckId});
 if(!t)return;
-if(t.driverId!==null&&t.driverId!==undefined){var old=G.drivers[t.driverId];if(old)old.truckId=null;}
+if(t.assignedDriver!==null){var old=G.drivers[t.assignedDriver];if(old)old.truckId=null;}
 var newDrv=G.drivers[driverId];
-if(newDrv.truckId!==null&&t.id!==newDrv.truckId){var oldTruck=G.fleet.find(function(x){return x.id===newDrv.truckId});if(oldTruck)oldTruck.driverId=null;}
-t.driverId=driverId;newDrv.truckId=t.id;
-showToast(newDrv.name+' assigned to '+TT[t.type].name, 'success');
+if(newDrv.truckId!==null&&t.id!==newDrv.truckId){var oldTruck=G.fleet.find(function(x){return x.id===newDrv.truckId});if(oldTruck)oldTruck.assignedDriver=null;}
+t.assignedDriver=driverId;newDrv.truckId=t.id;
+showToast(newDrv.name+' assigned to '+TT[t.type].name,'success');
 closeDriverModal();updateAll();
 }
 
@@ -424,29 +585,32 @@ G.tick++;
 // Day cycle
 if(G.tick%CFG.dayTicks===0){
 G.day++;
-var wages=G.drivers.reduce(function(s,d){return s+TIERS[d.tier].wage},0);
+var wages=G.drivers.reduce(function(s,d){return s+DT[d.type].wage},0);
 var maint=G.fleet.reduce(function(s,t){return s+TT[t.type].maint},0);
-G.balance-=wages+maint;
-showToast('Day '+G.day+' | Wages: $'+wages+' Maint: $'+maint, 'info');
+var hubMaint=G.hubs.reduce(function(s,h){return s+h.maint},0);
+G.balance-=wages+maint+hubMaint;
+showToast('Day '+G.day+' | Wages: $'+wages+' Maint: $'+(maint+hubMaint),'info');
+checkWeeklyVolumes();
 }
-
-checkExpiredOrders();
 
 // Move trucks
 G.fleet.forEach(function(t){
 if(t.state==='idle')return;
-var cfg=TT[t.type],eff=getEff(t.driverId),spd=cfg.speed*0.0008*eff*G.spd;
+var cfg=TT[t.type];
+var drv=t.assignedDriver!==null?G.drivers[t.assignedDriver]:null;
+var eff=(drv?DT[drv.type].speedMod:1)*(1+cfg.speed*0.1);
+var spd=cfg.speed*0.0008*eff*G.spd;
 var dx=t.tx-t.x,dy=t.ty-t.y,dist=Math.sqrt(dx*dx+dy*dy);
 if(dist<0.01){handleArrival(t);}
 else{t.x+=dx/dist*spd;t.y+=dy/dist*spd;}
 });
 
-// Update UI periodically
+// UI updates
 G.uiTick++;
-if(G.uiTick%20===0){renderOrderCards();renderOrderBadge();renderTopBar();}
+if(G.uiTick%20===0){renderContracts();renderOrderBadge();renderTopBar();}
 }
 
-// ============ RENDERING ============
+// ============ DRAW ============
 function draw(){
 var ctx=G.ctx;
 ctx.fillStyle='#0f3460';ctx.fillRect(0,0,G.W,G.H);
@@ -456,7 +620,19 @@ ctx.strokeStyle='rgba(109,74,255,0.08)';ctx.lineWidth=1;
 for(var x=0;x<G.W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,G.H);ctx.stroke();}
 for(var y=0;y<G.H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(G.W,y);ctx.stroke();}
 
-// Locations
+// Hubs
+G.hubs.forEach(function(h){
+var hx=h.x*G.W,hy=h.y*G.H;
+var gl=ctx.createRadialGradient(hx,hy,0,hx,hy,60);
+gl.addColorStop(0,'rgba(78,204,163,0.3)');gl.addColorStop(1,'transparent');
+ctx.fillStyle=gl;ctx.beginPath();ctx.arc(hx,hy,60,0,Math.PI*2);ctx.fill();
+ctx.fillStyle='#4ecca3';ctx.beginPath();ctx.arc(hx,hy,12,0,Math.PI*2);ctx.fill();
+ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';
+ctx.fillText(h.name,hx,hy-18);
+ctx.font='8px monospace';ctx.fillStyle='#888';ctx.fillText('🏠'+h.used+'/'+h.capacity,hx,hy+22);
+});
+
+// Companies (locations)
 Object.values(LOC).forEach(function(loc){
 var lx=loc.x*G.W,ly=loc.y*G.H;
 var gl=ctx.createRadialGradient(lx,ly,0,lx,ly,45);
@@ -465,37 +641,30 @@ ctx.fillStyle=gl;ctx.beginPath();ctx.arc(lx,ly,45,0,Math.PI*2);ctx.fill();
 ctx.fillStyle='#6d4aff';ctx.beginPath();ctx.arc(lx,ly,10,0,Math.PI*2);ctx.fill();
 ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';
 ctx.fillText(loc.name,lx,ly-18);
-ctx.font='7px monospace';ctx.fillStyle='#888';
-ctx.fillText(loc.ft.map(function(f){return FT[f].icon}).join(' '),lx,ly+22);
 });
 
-// Orders on map
-G.orders.forEach(function(o){
-if(o.status==='delivered'||o.status==='expired')return;
-var ft=FT[o.ftId],pulse=1+Math.sin(Date.now()/400)*0.15;
-var opx=o.origin.x*G.W,opy=o.origin.y*G.H;
-var dpx=o.destination.x*G.W,dpy=o.destination.y*G.H;
-ctx.fillStyle=o.status==='available'?ft.color:(o.status==='accepted'?'#f39c12':'#ffd700');
-ctx.beginPath();ctx.arc(opx,opy,6*pulse,0,Math.PI*2);ctx.fill();
-ctx.fillStyle='#f39c12';ctx.beginPath();ctx.arc(dpx,dpy,6*pulse,0,Math.PI*2);ctx.fill();
+// Orders
+G.activeOrders.forEach(function(o){
+if(o.status!=='in_transit')return;
+var ft=FT[o.ft];
+ctx.fillStyle='#ffd700';ctx.beginPath();ctx.arc(o.origin.x*G.W,o.origin.y*G.H,8,0,Math.PI*2);ctx.fill();
+ctx.fillStyle='#f39c12';ctx.beginPath();ctx.arc(o.destination.x*G.W,o.destination.y*G.H,8,0,Math.PI*2);ctx.fill();
 ctx.fillStyle='#ffd700';ctx.font='8px monospace';ctx.textAlign='center';
-ctx.fillText((o.units-o.deliveredUnits)+o.unitName,opx,opy-12);
-if(o.acceptedAtTick>0){
-var elapsed=G.tick-o.acceptedAtTick,pct=1-elapsed/o.deadlineTicks;
-if(pct<0.3){ctx.fillStyle='#ff6b6b';ctx.font='bold 12px monospace';ctx.fillText('⚠',opx,opy+18);}
-}
+ctx.fillText(o.units+o.unitName,o.origin.x*G.W,o.origin.y*G.H-12);
 });
 
 // Trucks
 G.fleet.forEach(function(t){
-var cfg=TT[t.type],sz=t.type==='heavy'?16:(t.type==='semi'?14:10);
+var cfg=TT[t.type],sz=t.type==='tier5'?16:(t.type==='tier4'?14:(t.type==='tier3'?12:10));
 ctx.shadowColor=cfg.color;ctx.shadowBlur=10;ctx.fillStyle=cfg.color;
 ctx.fillRect(t.x*G.W-sz,t.y*G.H-sz/2,sz*2,sz);ctx.shadowBlur=0;
-var hasDriver=t.driverId!==null&&t.driverId!==undefined;
-ctx.fillStyle=t.state==='idle'?(hasDriver?'#4ecca3':'#888'):'#ff6b6b';
+// Status indicator
+ctx.fillStyle=t.fuel<0.3?'#ff6b6b':(t.damage>50?'#ff6b6b':'#4ecca3');
 ctx.beginPath();ctx.arc(t.x*G.W-sz-3,t.y*G.H,3,0,Math.PI*2);ctx.fill();
+// Cargo
 if(t.cargo>0){ctx.fillStyle='#4ecca3';ctx.fillRect(t.x*G.W-sz+2,t.y*G.H-2,3,4);}
-if(t.state==='to_pickup'||t.state==='to_dropoff'){
+// Route line
+if(t.state!=='idle'){
 ctx.strokeStyle='rgba(109,74,255,0.4)';ctx.setLineDash([4,4]);
 ctx.beginPath();ctx.moveTo(t.x*G.W,t.y*G.H);ctx.lineTo(t.tx*G.W,t.ty*G.H);ctx.stroke();
 ctx.setLineDash([]);
@@ -504,100 +673,131 @@ ctx.setLineDash([]);
 }
 
 // ============ UI RENDERING ============
-function updateAll(){renderTopBar();renderOrderCards();renderFleetCards();renderStaffCards();renderShopCards();renderOrderBadge();}
+function updateAll(){renderTopBar();renderContracts();renderOrders();renderFleetCards();renderDriverCards();renderHubCards();renderShopCards();}
 
 function renderTopBar(){
 document.getElementById('balance').textContent='$'+G.balance.toLocaleString();
 document.getElementById('revenue').textContent='$'+G.rev.toLocaleString();
 document.getElementById('day-num').textContent=G.day;
-document.getElementById('truck-count').textContent=G.fleet.length+'/'+CFG.maxFleet;
-document.getElementById('driver-count').textContent=G.drivers.length;
+document.getElementById('contract-count').textContent=G.contracts.filter(function(c){return c!==null&&c.active}).length+'/'+CFG.maxContracts;
+document.getElementById('hub-count').textContent=G.hubs.length;
 }
 
-function renderOrderCards(){
-var c=document.getElementById('order-cards');
-var avail=G.orders.filter(function(o){return o.status==='available'});
-var acc=G.orders.filter(function(o){return o.status==='accepted'||o.status==='in_transit'});
+function renderContracts(){
+var c=document.getElementById('contract-cards');
+var active=G.contracts.filter(function(x){return x!==null&&x.active});
+var available=getAvailableContracts();
+
 var html='';
-
-if(avail.length>0){
-html+='<div class="section-label">Available — Tap to Accept</div>';
-html+=avail.map(function(o){
-var ft=FT[o.ftId],compat=G.fleet.filter(function(t){
-return t.state==='idle'&&t.driverId!==null&&TT[t.type].compat.indexOf(o.ftId)>=0;
+if(available.length>0){
+html+='<div class="section-label">Available Contracts — Sign for Orders</div>';
+available.forEach(function(comp,idx){
+var realIdx=COMPANIES.indexOf(comp);
+html+='<div class="contract-info"><div class="card-row"><span class="card-title">🏢 '+comp.name+'</span><span class="card-reward">$'+comp.signFee+' fee</span></div>';
+html+='<div class="card-sub">Freight: '+comp.ft.map(function(f){return FT[f].icon}).join(' ')+' | Daily: '+comp.dailyVol[0]+'-'+comp.dailyVol[1]+' | Weekly Goal: '+comp.weeklyVol[1]+'</div>';
+html+='<button class="btn btn-buy" style="margin-top:6px" onclick="signContract('+realIdx+')">Sign Contract</button></div>';
 });
-return '<div class="card" onclick="acceptOrder('+o.id+')"><div class="card-row"><span class="card-title">'+o.ftIcon+' '+o.origin.name+' → '+o.destination.name+'</span><span class="card-reward">$'+o.reward.toLocaleString()+'</span></div><div class="card-sub">'+o.units+' '+o.unitName+' | Deadline: '+Math.ceil(o.deadlineTicks/60)+'s | Trucks: '+compat.length+'</div></div>';
-}).join('');
 }
-
-if(acc.length>0){
-html+='<div class="section-label" style="color:#f39c12">Active — Send Trucks One by One</div>';
-html+=acc.map(function(o){
-var elapsed=G.tick-o.acceptedAtTick,remaining=Math.max(0,o.deadlineTicks-elapsed);
-var secs=Math.ceil(remaining/60),pct=Math.max(0,(1-elapsed/o.deadlineTicks)*100);
-var isWarn=pct<30,isLate=pct<=0;
-var dispBtn=o.status==='accepted'?'<button class="btn btn-primary" style="margin-top:6px" onclick="event.stopPropagation();openDispatchModal('+o.id+')">➕ Dispatch ONE Truck</button>':'<span class="card-sub" style="color:#4ecca3">🚛 Trucks delivering...</span>';
-return '<div class="card"><div class="card-row"><span class="card-title">'+o.ftIcon+' '+o.origin.name+' → '+o.destination.name+'</span><span class="card-reward">$'+o.reward.toLocaleString()+'</span></div><div class="card-sub">'+o.deliveredUnits+'/'+o.units+' '+o.unitName+'</div><div class="card-row" style="margin-top:4px"><span class="badge badge-'+(isLate?'danger':isWarn?'warning':'ok')+'">'+(isLate?'EXPIRED':secs+'s')+'</span></div><div class="timer-bar"><div class="timer-fill" style="width:'+pct+'%;background:'+(isWarn?'#ff6b6b':'#4ecca3')+'"></div></div>'+dispBtn+'</div>';
-}).join('');
+if(active.length>0){
+html+='<div class="section-label">Active Contracts</div>';
+active.forEach(function(con){
+var pct=Math.min(100,Math.round(con.weeklyVolume/con.weeklyGoal*100));
+var status=pct>=100?'🟢 ON TRACK':'🟡 '+pct+'%';
+html+='<div class="contract-info '+(pct<50?'danger':'')+'"><div class="card-row"><span class="card-title">🏭 '+con.company+'</span><span class="badge badge-'+(pct<50?'danger':(pct<80?'warning':'ok'))+'">'+status+'</span></div>';
+html+='<div class="card-sub">This week: '+con.weeklyVolume+'/'+con.weeklyGoal+' units | Daily: '+con.dailyVolume+'</div>';
+html+='<div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%;background:'+(pct<50?'#ff6b6b':(pct<80?'#f39c12':'#4ecca3'))+'"></div></div>'+
+'<button class="btn btn-danger" style="margin-top:6px" onclick="cancelContract('+con.id+')">Cancel Contract</button></div>';
+});
 }
-
-if(avail.length===0&&acc.length===0){html='<div class="empty-msg">No orders. Waiting...</div>';}
+if(active.length===0&&available.length===0){html='<div class="empty-msg">No contracts. Visit Shop to sign!</div>';}
 c.innerHTML=html;
+}
+
+function renderOrderBadge(){
+var n=G.pendingOrders.length;
+var b=document.getElementById('order-badge');
+b.textContent=n;b.style.display=n>0?'inline':'none';
+}
+
+function renderOrders(){
+var c=document.getElementById('orders-tab');
+if(!c)c=document.getElementById('tab-contracts');
+var html='<div class="section-label">Pending Orders — Accept to Start</div>';
+if(G.pendingOrders.length===0){html+='<div class="empty-msg">No pending orders.</div>';}
+else{
+html+=G.pendingOrders.map(function(o){
+var compat=G.fleet.filter(function(t){
+return t.state==='idle'&&t.assignedDriver!==null&&t.fuel>0.1&&t.damage<50&&
+(COMPAT[t.type].includes('all')||COMPAT[t.type].includes(o.ft));
+});
+return '<div class="card '+ (compat.length===0?'busy':'')+'" onclick="acceptOrder('+o.id+')"><div class="card-row"><span class="card-title">📋 '+o.ftIcon+' '+o.origin.name+' → '+o.destination.name+'</span><span class="card-reward">$'+o.reward+'</span></div><div class="card-sub">'+o.units+o.unitName+' | Company: '+o.company+'</div><div class="card-sub">Compatible trucks: '+compat.length+'</div></div>';
+}).join('');
+}
+c.querySelector('#order-cards')?c.querySelector('#order-cards').innerHTML=html:c.innerHTML=html;
 }
 
 function renderFleetCards(){
 var c=document.getElementById('fleet-cards');
-if(G.fleet.length===0&&G.garage.length===0){c.innerHTML='<div class="empty-msg">No trucks. Visit Shop.</div>';return;}
-var html='';
-if(G.fleet.length>0){
-html+='<div class="section-label">Active Fleet</div>';
-html+=G.fleet.map(function(t){
-var cfg=TT[t.type],drv=t.driverId!==null&&t.driverId!==undefined?G.drivers[t.driverId]:null;
-var st=t.state==='idle'?'🟢 IDLE':t.state==='to_pickup'?'📍→ PICKUP':t.state==='to_dropoff'?'📦→ DELIVER':'BUSY';
-var ci=cfg.compat.map(function(f){return FT[f].icon}).join('/');
-var cargoInfo=t.cargo>0?'<span style="color:#4ecca3">● '+t.cargo+'</span>':'';
-var drvBtn=drv?'<span class="badge badge-'+drv.tier+'">'+drv.name.split(' ')[0]+'</span>':'<button class="btn btn-danger" style="width:auto;padding:3px 8px;font-size:9px" onclick="event.stopPropagation();openDriverModal('+t.id+')">+Driver</button>';
-return '<div class="card" onclick="openDriverModal('+t.id+')"><div class="card-row"><span class="card-title"><span class="truck-icon" style="background:'+cfg.color+'"></span>'+cfg.name+'</span><span class="card-sub">'+st+cargoInfo+'</span></div><div class="card-row" style="margin-top:4px"><span class="card-sub">'+ci+' | Cap: '+cfg.cap+'</span>'+drvBtn+'</div></div>';
+if(G.fleet.length===0){c.innerHTML='<div class="empty-msg">No trucks. Buy from Shop.</div>';return;}
+c.innerHTML=G.fleet.map(function(t){
+var cfg=TT[t.type];
+var drv=t.assignedDriver!==null?G.drivers[t.assignedDriver]:null;
+var st=t.state==='idle'?'🟢 IDLE':t.state==='to_pickup'?'📍→ PICKUP':'🚚→ DELIVER';
+var fuelWarn=t.fuel<0.3?'⚠️ <span style="color:#ff6b6b">Fuel Low</span> ':'';
+var damageWarn=t.damage>50?'⚠️ <span style="color:#ff6b6b">Damaged</span> ':'';
+var fatWarn=t.fatigue>70?'⚠️ <span style="color:#ff6b6b">Fatigued</span> ':'';
+return '<div class="card" onclick="openDispatchModal('+t.id+')"><div class="card-row"><span class="card-title"><span class="truck-icon" style="background:'+cfg.color+'"></span>'+cfg.name+' (Cap: '+t.capacity+')</span><span class="card-sub">'+st+'</span></div><div class="card-sub">Fuel: '+Math.round(t.fuel*100)+'% | Damage: '+Math.round(t.damage)+'% | Fatigue: '+Math.round(t.fatigue)+'%</div><div class="card-sub">'+(fuelWarn+damageWarn+fatWarn)+'</div><div class="card-row" style="margin-top:4px"><span class="card-sub">Home: '+G.hubs.find(function(h){return h.id===t.homeHub})?.name||'None'+'</span><span class="badge badge-'+(drv?DT[drv.type].tier.replace('tier',''):'1')+'">'+(drv?drv.name:'Unassigned')+'</span></div></div>';
 }).join('');
-}
-if(G.garage.length>0){
-html+='<div class="section-label">Garage</div>';
-html+=G.garage.map(function(item,idx){
-var cfg=TT[item.type];
-return '<div class="card"><div class="card-row"><span class="card-title"><span class="truck-icon" style="background:'+cfg.color+'"></span>'+cfg.name+'</span><button class="btn btn-buy" style="width:auto;padding:4px 10px;font-size:10px" onclick="deployTruck('+idx+')">Deploy</button></div></div>';
-}).join('');
-}
-c.innerHTML=html;
 }
 
-function renderStaffCards(){
-var c=document.getElementById('staff-cards');
-var html='';
-if(G.drivers.length>0){
-html+='<div class="section-label">Drivers</div>';
-html+=G.drivers.map(function(d){
-var truck=d.truckId!==null?G.fleet.find(function(t){return t.id===d.truckId}):null;
-return '<div class="card busy"><div class="card-row"><span class="card-title">'+d.name+'</span><span class="badge badge-'+d.tier+'">'+d.tier+'</span></div><div class="card-sub">XP: '+d.xp+' | Wage: $'+TIERS[d.tier].wage+'/day | Truck: '+(truck?TT[truck.type].name:'Unassigned')+'</div></div>';
+function renderDriverCards(){
+var c=document.getElementById('driver-cards');
+if(G.drivers.length===0){c.innerHTML='<div class="empty-msg">No drivers. Hire from Shop.</div>';return;}
+c.innerHTML=G.drivers.map(function(d){
+var t=d.truckId!==null?G.fleet.find(function(x){return x.id===d.truckId}):null;
+var fatigueWarn=d.fatigue>70?'<span style="color:#ff6b6b">Fatigued!</span>':'Normal';
+return '<div class="card '+ (d.fatigue>70?'busy':'')+'"><div class="card-row"><span class="card-title">'+d.name+'</span><span class="badge badge-'+DT[d.type].tier.replace('tier','')+'">'+DT[d.type].name+'</span></div><div class="card-sub">Wage: $'+DT[d.type].wage+'/day | Bonus: '+d.bonus+' | XP: '+d.xp+'</div><div class="card-sub">Truck: '+(t?TT[t.type].name:'Unassigned')+' | Fatigue: '+fatigueWarn+'</div></div>';
 }).join('');
 }
-html+='<div style="margin-top:8px"><button class="btn btn-buy" onclick="hireDriver()">Hire Driver ($'+CFG.hireCost+')</button><div class="card-sub" style="text-align:center;margin-top:4px">'+G.drivers.length+'/'+CFG.maxFleet+'</div></div>';
-c.innerHTML=html;
+
+function renderHubCards(){
+var c=document.getElementById('hub-cards');
+if(G.hubs.length===0){c.innerHTML='<div class="empty-msg">No hubs. Buy from Shop.</div>';return;}
+c.innerHTML=G.hubs.map(function(h){
+return '<div class="card"><div class="card-row"><span class="card-title">🏠 '+h.name+'</span><span class="card-sub">Used: '+h.used+'/'+h.capacity+'</span></div><div class="card-sub">Maintenance: $'+h.maint+'/day | Fuel cost: '+Math.round(h.fuelCost*100)+'¢/unit</div></div>';
+}).join('');
 }
 
 function renderShopCards(){
 var c=document.getElementById('shop-cards');
-c.innerHTML=Object.entries(TT).map(function(entry){
-var key=entry[0],cfg=entry[1];
-var can=G.balance>=cfg.cost&&G.fleet.length+G.garage.length<CFG.maxFleet;
-var ci=cfg.compat.map(function(f){return FT[f].icon}).join('/');
-return '<div class="card"><div class="card-row"><span class="card-title"><span class="truck-icon" style="background:'+cfg.color+'"></span>'+cfg.name+'</span><span class="card-reward">$'+cfg.cost.toLocaleString()+'</span></div><div class="card-sub">Cap: '+cfg.cap+' | Speed: '+cfg.speed+' | Maint: $'+cfg.maint+'/day</div><div class="card-sub">Freight: '+ci+'</div><button class="btn btn-buy" style="margin-top:6px" '+(can?'':'disabled')+' onclick="buyTruck(\''+key+'\')">'+(can?'Purchase':(G.balance<cfg.cost?'Need $':'Full'))+'</button></div>';
-}).join('');
-}
-
-function renderOrderBadge(){
-var n=G.orders.filter(function(o){return o.status==='available'}).length;
-var b=document.getElementById('order-badge');
-b.textContent=n;b.style.display=n>0?'inline':'none';
+var html='<div class="section-label">Trucks — Buy for Fleet</div>';
+Object.entries(TT).forEach(function(entry){
+var key=entry[0],cfg=entry[1],idx=Object.keys(TT).indexOf(key);
+var can=G.balance>=cfg.cost&&G.fleet.length<G.maxFleet;
+html+='<div class="card"><div class="card-row"><span class="card-title"><span class="truck-icon" style="background:'+cfg.color+'"></span>'+cfg.name+' (Tier '+(idx+1)+')</span><span class="card-reward">$'+cfg.cost.toLocaleString()+'</span></div>';
+html+='<div class="card-sub">Cap: '+cfg.capBase+'-'+(cfg.capBase+cfg.capVar)+' | Speed: '+cfg.speed+' | Maint: $'+cfg.maint+'/day | Fuel: '+cfg.fuel+'¢/km</div>';
+html+='<div class="card-sub">Freight: '+COMPAT[key].map(function(f){return FT[f]?FT[f].icon:f}).join('/')}</div>';
+html+='<button class="btn btn-buy" style="margin-top:6px" '+(can?'':'disabled')+' onclick="buyTruck(\''+key+'\')">'+(can?'Purchase':(G.balance<cfg.cost?'Need $':'Full'))+'</button></div>';
+});
+html+='<div class="section-label">Drivers — Hire for Trucks</div>';
+Object.entries(DT).forEach(function(entry){
+var key=entry[0],cfg=entry[1],idx=Object.keys(DT).indexOf(key);
+var cost=CFG.hireCost*(idx+1);
+var can=G.balance>=cost&&G.drivers.length<G.maxFleet;
+html+='<div class="card"><div class="card-row"><span class="card-title">👨‍✈️ '+cfg.name+' (Tier '+(idx+1)+')</span><span class="card-reward">$'+cost+' hire</span></div>';
+html+='<div class="card-sub">Wage: $'+cfg.wage+'/day | Speed: '+cfg.speedMod+'x | Bonus: '+cfg.bonus+'</div>';
+html+='<button class="btn btn-buy" style="margin-top:6px" '+(can?'':'disabled')+' onclick="hireDriver(\''+key+'\')">'+(can?'Hire':(G.balance<cost?'Need $':'Full'))+'</button></div>';
+});
+html+='<div class="section-label">Hubs — Buy for Rest/Fuel/Repair</div>';
+Object.entries(HUB_TIER).forEach(function(entry){
+var key=entry[0],cfg=entry[1],idx=Object.keys(HUB_TIER).indexOf(key);
+var can=G.balance>=cfg.cost&&G.hubs.length<5;
+html+='<div class="card"><div class="card-row"><span class="card-title">🏭 '+cfg.name+' (Tier '+(idx+1)+')</span><span class="card-reward">$'+cfg.cost.toLocaleString()+'</span></div>';
+html+='<div class="card-sub">Capacity: '+cfg.capacity+' trucks | Maint: $'+cfg.maint+'/day</div>';
+html+='<div class="card-sub">Fuel: '+Math.round(cfg.fuelCost*100)+'¢ | Repair: '+Math.round(cfg.repairCost*100)+'¢</div>';
+html+='<button class="btn btn-buy" style="margin-top:6px" '+(can?'':'disabled')+' onclick="buyHub(\''+key+'\', '+(.3+Math.random()*.4)+', '+(.3+Math.random()*.4)+')">Purchase</button></div>';
+});
+c.innerHTML=html;
 }
 
 function showToast(msg,type){
