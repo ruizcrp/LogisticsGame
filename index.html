@@ -1,568 +1,614 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Logistics Game</title>
-    <link rel="manifest" href="./manifest.json">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Courier New', monospace;
-            background-color: #1a1a2e;
-            color: #ffffff;
-            overflow: hidden;
-        }
-
-        #game-container {
-            display: flex;
-            height: 100vh;
-            padding: 20px;
-        }
-
-        #left-panel {
-            width: 250px;
-            background-color: #16213e;
-            padding: 20px;
-            margin-right: 20px;
-            border-radius: 8px;
-        }
-
-        #right-panel {
-            width: 250px;
-            background-color: #16213e;
-            padding: 20px;
-            margin-left: 20px;
-            border-radius: 8px;
-        }
-
-        #game-area {
-            flex: 1;
-            position: relative;
-            background-color: #0f3460;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        h2 {
-            color: #6d4aff;
-            margin-bottom: 15px;
-            font-size: 14px;
-            text-transform: uppercase;
-        }
-
-        .stat-box {
-            background-color: #1a1a2e;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            font-size: 12px;
-        }
-
-        .stat-label {
-            color: #888;
-            font-size: 10px;
-        }
-
-        .stat-value {
-            color: #6d4aff;
-            font-size: 16px;
-            font-weight: bold;
-        }
-
-        button {
-            width: 100%;
-            padding: 12px;
-            margin-top: 10px;
-            background-color: #6d4aff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-family: inherit;
-        }
-
-        button:hover {
-            background-color: #5a42cc;
-        }
-
-        button:disabled {
-            background-color: #444;
-            cursor: not-allowed;
-        }
-
-        #canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        #message-overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: rgba(26, 26, 46, 0.95);
-            padding: 30px;
-            border-radius: 10px;
-            text-align: center;
-            z-index: 100;
-            display: none;
-        }
-
-        .waypoint-list {
-            max-height: 150px;
-            overflow-y: auto;
-            font-size: 11px;
-        }
-
-        .waypoint-item {
-                  padding: 5px;
-            background-color: #16213e;
-            margin-bottom: 4px;
-            border-radius: 2px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .remove-btn {
-            color: #ff4757;
-            cursor: pointer;
-            font-weight: bold;
-            padding: 0 8px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Logistics Game</title>
+<link rel="manifest" href="./manifest.json">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{font-family:-apple-system,'Courier New',monospace;background:#1a1a2e;color:#fff;overflow:hidden;width:100vw;height:100vh;height:100dvh;position:fixed;touch-action:manipulation}
+#top-bar{display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 12px;background:#16213e;border-bottom:1px solid #2a2a4e;flex-shrink:0;z-index:10}
+.top-stat{display:flex;align-items:center;gap:4px;font-size:11px}.top-stat .label{color:#888;font-size:9px}.top-stat .val{font-weight:bold}
+.money{color:#4ecca3}.day-val{color:#6d4aff}
+#main-wrap{display:flex;flex-direction:column;height:calc(100vh - 44px - 145px);flex:1;position:relative}
+#canvas{width:100%;height:100%;display:block;background:#0f3460}
+#bottom-panel{height:145px;background:#16213e;border-top:1px solid #2a2a4e;display:flex;flex-direction:column;flex-shrink:0}
+#tab-bar{display:flex;height:36px;border-bottom:1px solid #2a2a4e}
+.tab{flex:1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#888;border-bottom:2px solid transparent;cursor:pointer}
+.tab.active{color:#6d4aff;border-bottom-color:#6d4aff}
+.tab-badge{background:#ff6b6b;color:#fff;border-radius:8px;padding:1px 6px;font-size:9px;margin-left:4px}
+.tab-content{flex:1;overflow-y:auto;padding:6px;display:none}.tab-content.active{display:block}
+.tab-content::-webkit-scrollbar{width:4px}.tab-content::-webkit-scrollbar-thumb{background:#6d4aff;border-radius:2px}
+.card{background:#1a1a2e;border-radius:6px;padding:8px;margin-bottom:6px;border:1px solid #2a2a4e;cursor:pointer}
+.card.busy{opacity:.6}.card.selected{border-color:#4ecca3;background:#1e2e4e}
+.card-row{display:flex;justify-content:space-between;align-items:center}
+.card-title{font-size:12px;font-weight:bold}.card-sub{font-size:9px;color:#888;margin-top:2px}
+.card-reward{color:#ffd700;font-weight:bold;font-size:13px}
+.section-label{font-size:9px;color:#6d4aff;text-transform:uppercase;margin:8px 0 4px}
+.empty-msg{text-align:center;color:#666;font-size:11px;padding:16px}
+.badge{padding:1px 5px;border-radius:3px;font-size:8px;font-weight:bold}
+.badge-newbie{background:#ff6b6b;color:#fff}.badge-experienced{background:#ffd700;color:#1a1a2e}.badge-expert{background:#4ecca3;color:#1a1a2e}
+.badge-info{background:#3498db;color:#fff}.badge-warning{background:#f39c12;color:#1a1a2e}.badge-danger{background:#ff6b6b;color:#fff}.badge-ok{background:#4ecca3;color:#1a1a2e}
+.btn{padding:8px 12px;border:none;border-radius:6px;font-family:inherit;font-size:11px;cursor:pointer;width:100%}
+.btn-primary{background:#6d4aff;color:#fff}.btn-buy{background:#4ecca3;color:#1a1a2e}.btn-danger{background:#ff6b6b;color:#fff}.btn:disabled{background:#444;opacity:.5;cursor:not-allowed}
+#toast-area{position:fixed;bottom:155px;left:8px;right:8px;z-index:60;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:4px}
+.toast{background:rgba(26,26,46,.92);border-left:3px solid #6d4aff;border-radius:6px;padding:6px 12px;font-size:10px;max-width:320px;animation:toastIn .25s ease}
+.toast.success{border-left-color:#4ecca3}.toast.error{border-left-color:#ff6b6b}.toast.info{border-left-color:#3498db}
+.toast.fadeout{animation:toastOut .3s ease forwards}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-10px)}}
+.truck-icon{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin-right:4px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:50;justify-content:center;align-items:center;padding:16px}
+.modal-overlay.show{display:flex}
+.modal-box{background:#1a1a2e;border:1px solid #6d4aff;border-radius:12px;padding:16px;max-width:340px;width:100%;max-height:75vh;overflow-y:auto}
+.timer-bar{height:4px;background:#333;border-radius:2px;margin-top:4px;overflow:hidden}.timer-fill{height:100%;transition:width .3s}
+.dispatch-row{display:flex;align-items:center;gap:8px;padding:8px;background:#16213e;border-radius:6px;margin-bottom:6px;border:1px solid #2a2a4e;cursor:pointer}
+.dispatch-row:active{border-color:#4ecca3}
+</style>
 </head>
 <body>
-    <div id="game-container">
-        <!-- LEFT PANEL -->
-        <div id="left-panel">
-            <h2>📦 Orders</h2>
-            <div class="stat-box">
-                <div class="stat-label">Pending Orders</div>
-                <div class="stat-value" id="pending-orders">0</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Completed</div>
-                <div class="stat-value" id="completed-orders">0</div>
-            </div>
-            <button onclick="spawnOrder()">New Order</button>
-            <br>
-            <h2>Truck</h2>
-            <div class="stat-box">
-                <div class="stat-label">Current Load</div>
-                <div class="stat-value"><span id="truck-load">0</span>/<span id="truck-capacity">5</span></div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Status</div>
-                <div class="stat-value" id="truck-status">Idle</div>
-            </div>
-        </div>
 
-        <!-- GAME AREA -->
-        <div id="game-area">
-            <canvas id="canvas"></canvas>
-            <div id="message-overlay">
-                <h2 id="message-title">Game Over</h2>
-                <p id="message-text">You delivered 10 orders!</p>
-                <button onclick="restartGame()" style="margin-top: 15px;">Play Again</button>
-            </div>
-        </div>
+<div id="top-bar">
+<div class="top-stat"><span class="label">$</span><span class="val money" id="balance">5,000</span></div>
+<div class="top-stat"><span class="label">REV</span><span class="val money" id="revenue">0</span></div>
+<div class="top-stat"><span class="label">DAY</span><span class="val day-val" id="day-num">1</span></div>
+<div class="top-stat"><span class="label">TRKS</span><span class="val" id="truck-count">1/15</span></div>
+<div class="top-stat"><span class="label">DRV</span><span class="val" id="driver-count">1</span></div>
+</div>
 
-        <!-- RIGHT PANEL -->
-        <div id="right-panel">
-            <h2>🗺️ Waypoints</h2>
-            <div class="stat-box">
-                <div class="stat-label">Click map to add pickup/dropoff points</div>
-            </div>
-            <div class="waypoint-list" id="waypoint-list"></div>
-            <button onclick="clearWaypoints()">Clear All</button>
-            <br>
-            <h2>⚙️ Settings</h2>
-            <div class="stat-box">
-                <div class="stat-label">Speed</div>
-                <input type="range" min="1" max="10" value="5" onchange="setSpeed(this.value)" style="width: 100%;">
-            </div>
-            <button onclick="togglePause()">Pause/Resume</button>
-        </div>
-    </div>
+<div id="main-wrap">
+<canvas id="canvas"></canvas>
+<div id="toast-area"></div>
+</div>
 
-    <script>
-        // ==================== GAME STATE ====================
-        const gameState = {
-            canvas: null,
-            ctx: null,
-            width: 0,
-            height: 0,
-            truck: { x: 0, y: 0, targetX: 0, targetY: 0, speed: 3, capacity: 5, load: 0 },
-            orders: [],
-            waypoints: [],
-            completedOrders: 0,
-            paused: false,
-            gameOver: false,
-            maxOrders: 15
-        };
+<div id="bottom-panel">
+<div id="tab-bar">
+<div class="tab active" data-tab="orders">Orders <span class="tab-badge" id="order-badge">0</span></div>
+<div class="tab" data-tab="fleet">Fleet</div>
+<div class="tab" data-tab="hire">Staff</div>
+<div class="tab" data-tab="shop">Shop</div>
+</div>
+<div class="tab-content active" id="tab-orders"><div id="order-cards"></div></div>
+<div class="tab-content" id="tab-fleet"><div id="fleet-cards"></div></div>
+<div class="tab-content" id="tab-hire"><div id="staff-cards"></div></div>
+<div class="tab-content" id="tab-shop"><div id="shop-cards"></div></div>
+</div>
 
-        // ==================== INITIALIZATION ====================
-        window.onload = () => {
-            gameState.canvas = document.getElementById('canvas');
-            gameState.ctx = gameState.canvas.getContext('2d');
-            resizeCanvas();
-            resetGame();
-            animate();
-            
-            // Register service worker
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(() => console.log('Service Worker registered'))
-                    .catch(err => console.error('SW registration failed:', err));
-            }
-            
-            // Register as PWA
-            if ('serviceWorker' in navigator && 'PresentationRequest' in window) {
-                window.addEventListener('load', async () => {
-                    if (navigator.getInstalledRelatedApps) {
-                        // PWA install prompt handled by browser
-                    }
-                });
-            }
-        };
+<div id="dispatch-modal" class="modal-overlay">
+<div class="modal-box">
+<h3 style="color:#6d4aff;margin-bottom:8px">Dispatch ONE Truck</h3>
+<div id="dispatch-order-info" style="font-size:11px;margin-bottom:10px;color:#ccc"></div>
+<div id="dispatch-truck-list"></div>
+<div style="margin-top:10px;text-align:center"><button class="btn" style="background:#444" onclick="closeDispatchModal()">Close</button></div>
+</div>
+</div>
 
-        window.onresize = resizeCanvas;
-        
-        function resizeCanvas() {
-            const container = document.getElementById('game-area');
-            gameState.canvas.width = container.clientWidth;
-            gameState.canvas.height = container.clientHeight;
-            gameState.width = gameState.canvas.width;
-            gameState.height = gameState.canvas.height;
-            
-            // Reset truck position if out of bounds
-            if (gameState.truck.x > gameState.width) gameState.truck.x = gameState.width / 2;
-            if (gameState.truck.y > gameState.height) gameState.truck.y = gameState.height / 2;
-        }
+<div id="driver-modal" class="modal-overlay">
+<div class="modal-box">
+<h3 style="color:#6d4aff;margin-bottom:8px">Assign Driver</h3>
+<div id="driver-modal-truck-info" style="font-size:11px;margin-bottom:10px;color:#ccc"></div>
+<div id="driver-list-modal"></div>
+<button class="btn" style="margin-top:8px;background:#444" onclick="closeDriverModal()">Close</button>
+</div>
+</div>
 
-        // ==================== GAME LOGIC ====================
-        function resetGame() {
-            gameState.truck.x = gameState.width / 2;
-            gameState.truck.y = gameState.height / 2;
-            gameState.truck.targetX = gameState.truck.x;
-            gameState.truck.targetY = gameState.truck.y;
-            gameState.truck.load = 0;
-            gameState.orders = [];
-            gameState.completedOrders = 0;
-            gameState.gameOver = false;
-            gameState.paused = false;
-            document.getElementById('message-overlay').style.display = 'none';
-            updateStats();
-        }
+<script>
+// ============ CONFIGURATION ============
+var FT={
+bulk:{name:'Bulk',color:'#f4a460',icon:'⚒️',unit:'t'},
+container:{name:'Container',color:'#3498db',icon:'📦',unit:'TEU'},
+cool:{name:'Refrigerated',color:'#4ecca3',icon:'❄️',unit:'pal'},
+special:{name:'Special',color:'#9b59b6',icon:'⚠️',unit:'unt'}
+};
+var TT={
+dump_truck:{name:'Kipper',cost:2000,cap:3,compat:['bulk'],speed:4,color:'#95a5a6',maint:50},
+dry_van:{name:'Trockenwagen',cost:3500,cap:8,compat:['container'],speed:5,color:'#3498db',maint:80},
+reefer:{name:'Kühlfahrzeug',cost:6000,cap:6,compat:['cool'],speed:4.5,color:'#4ecca3',maint:150},
+flatbed:{name:'Tieflader',cost:4500,cap:4,compat:['special'],speed:3.5,color:'#9b59b6',maint:100},
+semi:{name:'Auflieger',cost:8000,cap:15,compat:['container','bulk'],speed:4,color:'#2ecc71',maint:180},
+heavy:{name:'Schwertransport',cost:15000,cap:20,compat:['special','container'],speed:2.5,color:'#e74c3c',maint:350}
+};
+var LOC={
+downtown:{name:'Downtown',x:.25,y:.35,ft:['container']},
+industrial:{name:'Industrial',x:.72,y:.65,ft:['bulk','special','container']},
+port:{name:'Port',x:.18,y:.75,ft:['bulk','container','cool']},
+airport:{name:'Airport',x:.80,y:.22,ft:['cool','container','special']},
+suburb:{name:'Suburb',x:.50,y:.50,ft:['container','cool']},
+quarry:{name:'Quarry',x:.15,y:.15,ft:['bulk']},
+farm:{name:'Farm',x:.85,y:.80,ft:['bulk','cool']}
+};
+var NAMES=['Alex Weber','Jordan Becker','Taylor Müller','Casey Schmidt','Sam Fischer','Riley Wagner','Mayer Schäfer','Quinn Schulz'];
+var CFG={startBal:5000,maxFleet:15,orderInt:9000,dayTicks:3600,hireCost:500,finePct:0.25,latePct:0.5};
+var TIERS={newbie:{wage:300,eff:1.0},experienced:{wage:600,eff:1.3},expert:{wage:1000,eff:1.6}};
+var PROMOTE={newbie:1500,experienced:4000};
 
-        function spawnOrder() {
-            if (gameState.orders.length >= gameState.maxOrders) {
-                showMessage("Too many pending orders!", "Try delivering some first");
-                return;
-            }
-            
-            const order = {
-                id: Date.now(),
-                pickupX: Math.random() * (gameState.width - 100) + 50,
-                pickupY: Math.random() * (gameState.height - 100) + 50,
-                dropoffX: Math.random() * (gameState.width - 100) + 50,
-                dropoffY: Math.random() * (gameState.height - 100) + 50,
-                state: 'pickup_pending' // pickup_pending, pickup_ready, dropoff_pending
-            };
-            gameState.orders.push(order);
-            updateStats();
-            drawWaypoints();
-        }
+// ============ GAME STATE ============
+var G={
+balance:5000,rev:0,day:1,tick:0,fleet:[],garage:[],drivers:[],orders:[],
+canvas:null,ctx:null,W:0,H:0,truckId:0,orderId:0,lastOrder:0,paused:false,spd:1.0,
+dispatchOrderId:0,driverTruckId:0,uiTick:0
+};
 
-        function updateStats() {
-            document.getElementById('pending-orders').textContent = gameState.orders.filter(o => o.state !== 'delivered').length;
-            document.getElementById('completed-orders').textContent = gameState.completedOrders;
-            document.getElementById('truck-load').textContent = gameState.truck.load;
-            document.getElementById('truck-capacity').textContent = gameState.truck.capacity;
-            
-            const statusEl = document.getElementById('truck-status');
-            if (gameState.truck.load === 0) {
-                statusEl.textContent = 'Empty - Find pickups';
-            } else {
-                statusEl.textContent = 'Loaded - Deliver!';
-            }
-        }
+// ============ INITIALIZATION ============
+window.onload=function(){
+G.canvas=document.getElementById('canvas');
+G.ctx=G.canvas.getContext('2d');
+resize();
+window.addEventListener('resize',resize);
 
-        // ==================== WAYPOINT MANAGEMENT ====================
-        gameState.canvas.addEventListener('click', (e) => {
-            if (gameState.paused || gameState.gameOver) return;
-            
-            const rect = gameState.canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            gameState.waypoints.push({ x, y });
-            drawWaypoints();
-            updateWaypointList();
-        });
+// Starter truck + driver
+G.fleet.push({id:++G.truckId,type:'dry_van',x:.5,y:.5,tx:.5,ty:.5,state:'idle',orderId:null,driverId:0,cargo:0});
+G.drivers.push({id:0,name:NAMES[0],tier:'newbie',xp:0,truckId:G.fleet[0].id});
 
-        function drawWaypoints() {
-            const ctx = gameState.ctx;
-            gameState.waypoints.forEach((wp, i) => {
-                ctx.fillStyle = '#6d4aff';
-                ctx.beginPath();
-                ctx.arc(wp.x, wp.y, 8, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '10px Courier New';
-                ctx.textAlign = 'center';
-                ctx.fillText(i + 1, wp.x, wp.y + 3);
-            });
-        }
+// Setup tabs
+document.querySelectorAll('.tab').forEach(function(t){
+t.addEventListener('click',function(){
+document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});
+document.querySelectorAll('.tab-content').forEach(function(x){x.classList.remove('active')});
+t.classList.add('active');
+document.getElementById('tab-'+t.dataset.tab).classList.add('active');
+})});
 
-        function updateWaypointList() {
-            const list = document.getElementById('waypoint-list');
-            list.innerHTML = '';
-            gameState.waypoints.forEach((wp, i) => {
-                const item = document.createElement('div');
-                item.className = 'waypoint-item';
-                item.innerHTML = `<span>${i + 1}: (${Math.round(wp.x)}, ${Math.round(wp.y)})</span><span class="remove-btn" onclick="removeWaypoint(${i})">×</span>`;
-                list.appendChild(item);
-            });
-        }
+generateOrders();
+animate();
+setInterval(generateOrders,CFG.orderInt);
+if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js').catch(function(){})}
+console.log('Game ready!');
+};
 
-        function removeWaypoint(index) {
-            gameState.waypoints.splice(index, 1);
-            drawWaypoints();
-            updateWaypointList();
-        }
+function resize(){
+var w=document.getElementById('main-wrap'),dpr=window.devicePixelRatio||1;
+G.W=w.clientWidth;G.H=w.clientHeight;
+G.canvas.width=G.W*dpr;G.canvas.height=G.H*dpr;
+G.canvas.style.width=G.W+'px';G.canvas.style.height=G.H+'px';
+G.ctx.setTransform(dpr,0,0,dpr,0,0);
+}
 
-        function clearWaypoints() {
-            gameState.waypoints = [];
-            drawWaypoints();
-            updateWaypointList();
-        }
+// ============ ORDER SYSTEM ============
+function generateOrders(){
+var now=Date.now();
+if(now-G.lastOrder<CFG.orderInt)return;
+if(G.orders.filter(function(o){return o.status==='available'}).length>=12)return;
 
-        function setSpeed(value) {
-            gameState.truck.speed = parseInt(value);
-        }
+var fk=Object.keys(FT),n=1+Math.floor(Math.random()*2);
+for(var i=0;i<n&&G.orders.length<18;i++){
+var fid=fk[Math.floor(Math.random()*fk.length)],ft=FT[fid];
+var cl=Object.values(LOC).filter(function(l){return l.ft.indexOf(fid)>=0});
+if(cl.length<2)continue;
+var orig=cl[Math.floor(Math.random()*cl.length)];
+var dest=cl[Math.floor(Math.random()*cl.length)];
+while(dest===orig&&cl.length>1)dest=cl[Math.floor(Math.random()*cl.length)];
 
-        function togglePause() {
-            gameState.paused = !gameState.paused;
-        }
+var ranges={bulk:[5,20],container:[3,15],cool:[2,10],special:[1,8]};
+var r=ranges[fid];var units=Math.floor(r[0]+Math.random()*(r[1]-r[0]));
+var dx=dest.x-orig.x,dy=dest.y-orig.y;var dist=Math.sqrt(dx*dx+dy*dy);
+var rates={bulk:15,container:25,cool:40,special:60};
+var reward=Math.round(units*rates[fid]*(50+dist*100)*(0.9+Math.random()*0.3));
+var deadTicks=Math.floor(1200+Math.random()*3600);
 
-        // ==================== DRAWING ====================
-        function drawGrid() {
-            const ctx = gameState.ctx;
-            ctx.strokeStyle = 'rgba(109, 74, 255, 0.1)';
-            ctx.lineWidth = 1;
-            
-            for (let x = 0; x < gameState.width; x += 50) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, gameState.height);
-                ctx.stroke();
-            }
-            for (let y = 0; y < gameState.height; y += 50) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(gameState.width, y);
-                ctx.stroke();
-            }
-        }
+G.orders.push({
+id:++G.orderId,ftId:fid,ftName:ft.name,ftIcon:ft.icon,units:units,unitName:ft.unit,
+origin:orig,destination:dest,reward:reward,deadlineTicks:deadTicks,
+acceptedAtTick:0,status:'available',deliveredUnits:0,assignedTrucks:[]
+});
+}
+G.lastOrder=now;
+showToast('New orders available!','info');
+updateAll();
+}
 
-        function drawTruck() {
-            const ctx = gameState.ctx;
-            const t = gameState.truck;
-            
-            // Truck body
-            ctx.fillStyle = '#4ecca3';
-            ctx.fillRect(t.x - 15, t.y - 10, 30, 20);
-            
-            // Cab
-            ctx.fillStyle = '#6d4aff';
-            ctx.fillRect(t.x - 15, t.y - 10, 10, 20);
-            
-            // Cargo indication
-            ctx.fillStyle = `rgb(${t.load * 50}, ${100 - t.load * 15}, 0)`;
-            for (let i = 0; i < t.load && i < 5; i++) {
-                ctx.fillRect(t.x - 5 + i * 4, t.y - 5, 3, 3);
-            }
-        }
+function acceptOrder(id){
+var o=G.orders.find(function(x){return x.id===id});
+if(!o||o.status!=='available')return;
+o.status='accepted';o.acceptedAtTick=G.tick;
+showToast('Order accepted! Send trucks one by one to fulfill it.','success');
+updateAll();
+}
 
-        function drawOrders() {
-            const ctx = gameState.ctx;
-            
-            gameState.orders.forEach(order => {
-                // Pickup point
-                if (order.state === 'pickup_pending') {
-                    ctx.fillStyle = '#ff6b6b';
-                    ctx.beginPath();
-                    ctx.arc(order.pickupX, order.pickupY, 12, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 14px Courier New';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('PICKUP', order.pickupX, order.pickupY - 15);
-                }
-                
-                // Dropoff point
-                if (order.state === 'pickup_ready') {
-                    ctx.fillStyle = '#4ecdc4';
-                    ctx.beginPath();
-                    ctx.arc(order.dropoffX, order.dropoffY, 12, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 14px Courier New';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('DROP', order.dropoffX, order.dropoffY - 15);
-                }
-            });
-        }
+function openDispatchModal(orderId){
+var o=G.orders.find(function(x){return x.id===orderId});
+if(!o||o.status!=='accepted'&&o.status!=='in_transit')return;
+G.dispatchOrderId=orderId;
 
-        function drawPath() {
-            const ctx = gameState.ctx;
-            const t = gameState.truck;
-            
-            if (t.targetX !== t.x || t.targetY !== t.y) {
-                ctx.strokeStyle = 'rgba(109, 74, 255, 0.5)';
-                ctx.setLineDash([5, 5]);
-                ctx.beginPath();
-                ctx.moveTo(t.x, t.y);
-                ctx.lineTo(t.targetX, t.targetY);
-                ctx.stroke();
-                ctx.setLineDash([]);
-            }
-        }
+var compat=G.fleet.filter(function(t){
+return t.state==='idle'&&t.driverId!==null&&TT[t.type].compat.indexOf(o.ftId)>=0;
+});
+var info=document.getElementById('dispatch-order-info');
+info.innerHTML='<b>'+o.ftIcon+' '+o.origin.name+' → '+o.destination.name+'</b><br>'+
+'Total needed: '+o.units+' '+o.unitName+' | Delivered: '+o.deliveredUnits+'/'+o.units+'<br>'+
+'Remaining: '+(o.units-o.deliveredUnits)+' '+o.unitName+' | Reward: $'+o.reward.toLocaleString()+'<br>'+
+'<i style="color:#ffd700">Select ONE truck below to send.</i>';
 
-        // ==================== UPDATE LOOP ====================
-        function update() {
-            if (gameState.paused || gameState.gameOver) return;
-            
-            const t = gameState.truck;
-            const dx = t.targetX - t.x;
-            const dy = t.targetY - t.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            if (dist < 5) {
-                t.x = t.targetX;
-                t.y = t.targetY;
-                
-                // Check order completion
-                checkOrderCompletion();
-                
-                // Auto-pick next order
-                if (t.load === 0 && gameState.orders.some(o => o.state === 'pickup_pending')) {
-                    assignNextPickup();
-                } else if (t.load > 0 && gameState.orders.some(o => o.state === 'pickup_ready')) {
-                    assignNextDropoff();
-                }
-            } else {
-                t.x += (dx / dist) * t.speed;
-                t.y += (dy / dist) * t.speed;
-            }
-            
-            updateStats();
-        }
+var list=document.getElementById('dispatch-truck-list');
+if(compat.length===0){
+list.innerHTML='<div class="empty-msg">No compatible idle trucks with drivers!</div>';
+}else{
+list.innerHTML=compat.map(function(t){
+var drv=G.drivers[t.driverId],cfg=TT[t.type];
+return '<div class="dispatch-row" onclick="sendTruck('+t.id+')">'+
+'<span class="truck-icon" style="background:'+cfg.color+'"></span>'+
+'<div style="flex:1"><div style="font-size:11px"><b>'+cfg.name+'</b> (Cap: '+cfg.cap+')</div>'+
+'<div style="font-size:9px;color:#888">Driver: '+drv.name+' ('+drv.tier+', XP:'+drv.xp+')</div></div>'+
+'<div style="color:#4ecca3;font-size:10px">→ Send</div></div>';
+}).join('');
+}
+document.getElementById('dispatch-modal').classList.add('show');
+}
 
-        function checkOrderCompletion() {
-            const t = gameState.truck;
-            
-            gameState.orders.forEach(order => {
-                if (order.state === 'pickup_pending') {
-                    const d = Math.hypot(t.x - order.pickupX, t.y - order.pickupY);
-                    if (d < 15 && t.load < t.capacity) {
-                        order.state = 'pickup_ready';
-                        t.load++;
-                        showMessage("Picked up!", `Load: ${t.load}/${t.capacity}`);
-                    }
-                } else if (order.state === 'pickup_ready') {
-                    const d = Math.hypot(t.x - order.dropoffX, t.y - order.dropoffY);
-                    if (d < 15 && t.load > 0) {
-                        order.state = 'delivered';
-                        t.load--;
-                        gameState.completedOrders++;
-                        
-                        if (gameState.completedOrders >= gameState.maxOrders) {
-                            endGame(true);
-                        }
-                        
-                        updateStats();
-                    }
-                }
-            });
-            
-            // Clean up delivered orders
-            gameState.orders = gameState.orders.filter(o => o.state !== 'delivered');
-        }
+function closeDispatchModal(){
+document.getElementById('dispatch-modal').classList.remove('show');
+G.dispatchOrderId=0;
+}
 
-        function assignNextPickup() {
-            const order = gameState.orders.find(o => o.state === 'pickup_pending');
-            if (order) {
-                gameState.truck.targetX = order.pickupX;
-                gameState.truck.targetY = order.pickupY;
-                document.getElementById('truck-status').textContent = 'Heading to pickup...';
-            }
-        }
+function sendTruck(truckId){
+var o=G.orders.find(function(x){return x.id===G.dispatchOrderId});
+if(!o){closeDispatchModal();return;}
+var t=G.fleet.find(function(x){return x.id===truckId});
+if(!t||t.state!=='idle'||!TT[t.type].compat.includes(o.ftId)){
+showToast('Truck not available!', 'error');return;}
+if(o.deliveredUnits>=o.units){showToast('Order already complete!', 'error');closeDispatchModal();return;}
 
-        function assignNextDropoff() {
-            const order = gameState.orders.find(o => o.state === 'pickup_ready');
-            if (order) {
-                gameState.truck.targetX = order.dropoffX;
-                gameState.truck.targetY = order.dropoffY;
-                document.getElementById('truck-status').textContent = 'Delivering cargo...';
-            }
-        }
+t.orderId=o.id;
+t.state='to_pickup';
+t.tx=o.origin.x;t.ty=o.origin.y;
+if(o.assignedTrucks.indexOf(t.id)<0)o.assignedTrucks.push(t.id);
+o.status='in_transit';
 
-        // ==================== UI HELPERS ====================
-        function showMessage(title, text) {
-            document.getElementById('message-title').textContent = title;
-            document.getElementById('message-text').textContent = text;
-            document.getElementById('message-overlay').style.display = 'block';
-            setTimeout(() => {
-                document.getElementById('message-overlay').style.display = 'none';
-            }, 1500);
-        }
+showToast(TT[t.type].name+' sent to '+o.origin.name+' (will return for more if needed)', 'success');
+closeDispatchModal();
+updateAll();
+}
 
-        function endGame(victory) {
-            gameState.gameOver = true;
-            document.getElementById('message-title').textContent = victory ? '🎉 Victory!' : '💀 Game Over';
-            document.getElementById('message-text').textContent = 
-                `You delivered ${gameState.completedOrders}/${gameState.maxOrders} orders`;
-            document.getElementById('message-overlay').style.display = 'block';
-        }
+function checkExpiredOrders(){
+G.orders.forEach(function(o){
+if(o.status!=='accepted'&&o.status!=='in_transit')return;
+if(o.acceptedAtTick===0)return;
+var elapsed=G.tick-o.acceptedAtTick;
+if(elapsed>o.deadlineTicks){
+var trucksBusy=o.assignedTrucks.filter(function(tid){
+var tr=G.fleet.find(function(x){return x.id===tid});return tr&&tr.state!=='idle';
+}).length;
+var partial=o.deliveredUnits>0?Math.round(o.deliveredUnits/o.units*o.reward):0;
 
-        function restartGame() {
-            resetGame();
-        }
+if(partial>0){
+partial=trucksBusy>0?Math.round(partial*CFG.latePct):partial;
+G.balance+=partial;G.rev+=partial;
+showToast('Order '+o.id+' finished LATE! +$'+partial, 'error');
+}else{
+var fine=Math.round(o.reward*CFG.finePct);
+G.balance-=fine;
+showToast('Order '+o.id+' EXPIRED (no delivery)! Fine -$'+fine, 'error');
+}
 
-        // ==================== MAIN LOOP ====================
-        function animate() {
-            const ctx = gameState.ctx;
-            
-            // Clear canvas
-            ctx.fillStyle = '#0f3460';
-            ctx.fillRect(0, 0, gameState.width, gameState.height);
-            
-            // Draw game elements
-            drawGrid();
-            drawPath();
-            drawOrders();
-            drawWaypoints();
-            drawTruck();
-            
-            // Update game state
-            update();
-            
-            requestAnimationFrame(animate);
-        }
-    </script>
+o.assignedTrucks.forEach(function(tid){
+var tr=G.fleet.find(function(x){return x.id===tid});
+if(tr){tr.state='idle';tr.orderId=null;tr.cargo=0;}
+});
+o.status='expired';
+}
+});
+G.orders=G.orders.filter(function(o){return o.status!=='expired'&&o.status!=='delivered'});
+}
+
+// ============ TRUCK MOVEMENT ============
+function handleArrival(t){
+var o=G.orders.find(function(x){return x.id===t.orderId});
+if(!o){t.state='idle';t.orderId=null;t.cargo=0;return;}
+
+if(t.state==='to_pickup'){
+var remaining=o.units-o.deliveredUnits;
+t.cargo=Math.min(TT[t.type].cap,remaining);
+t.state='to_dropoff';
+t.tx=o.destination.x;t.ty=o.destination.y;
+showToast(TT[t.type].name+' loaded '+t.cargo+' '+o.unitName+' → '+o.destination.name, 'info');
+}else if(t.state==='to_dropoff'){
+o.deliveredUnits+=t.cargo;
+t.cargo=0;
+
+if(o.deliveredUnits>=o.units){
+var elapsed=G.tick-o.acceptedAtTick;
+var isLate=elapsed>o.deadlineTicks;
+var reward=o.reward;
+if(isLate)reward=Math.round(reward*CFG.latePct);
+G.balance+=reward;G.rev+=reward;
+
+o.assignedTrucks.forEach(function(tid){
+var tr=G.fleet.find(function(x){return x.id===tid});
+if(tr&&tr.driverId!==null){
+G.drivers[tr.driverId].xp+=Math.round(reward/Math.max(1,o.assignedTrucks.length));
+promoteDriver(G.drivers[tr.driverId]);
+}
+});
+
+o.status='delivered';
+showToast('ORDER COMPLETE! +$'+reward+(isLate?' (LATE)':''), 'success');
+
+o.assignedTrucks.forEach(function(tid){
+var tr=G.fleet.find(function(x){return x.id===tid});
+if(tr){tr.state='idle';tr.orderId=null;tr.cargo=0;}
+});
+o.assignedTrucks=[];
+G.orders=G.orders.filter(function(x){return x.id!==o.id});
+}else{
+t.state='to_pickup';
+t.tx=o.origin.x;t.ty=o.origin.y;
+showToast('Partial delivery! Going back for more...', 'info');
+}
+}
+updateAll();
+}
+
+// ============ FLEET MANAGEMENT ============
+function buyTruck(type){
+var cfg=TT[type];
+if(G.balance<cfg.cost){showToast('Not enough money!', 'error');return;}
+if(G.fleet.length+G.garage.length>=CFG.maxFleet){showToast('Fleet full!', 'error');return;}
+G.balance-=cfg.cost;
+G.garage.push({type:type});
+showToast('Bought '+cfg.name+'! Deploy from Fleet tab.', 'success');
+updateAll();
+}
+
+function deployTruck(idx){
+var item=G.garage[idx];if(!item)return;
+G.garage.splice(idx,1);
+var t={id:++G.truckId,type:item.type,x:.4+Math.random()*.2,y:.4+Math.random()*.2,tx:0,ty:0,state:'idle',orderId:null,driverId:null,cargo:0};
+G.fleet.push(t);
+showToast(TT[item.type].name+' deployed! Assign a driver.', 'success');
+updateAll();
+}
+
+// ============ DRIVER MANAGEMENT ============
+function hireDriver(){
+if(G.balance<CFG.hireCost){showToast('Need $'+CFG.hireCost+'!', 'error');return;}
+if(G.drivers.length>=CFG.maxFleet){showToast('Max drivers!', 'error');return;}
+G.balance-=CFG.hireCost;
+var d={id:G.drivers.length,name:NAMES[Math.floor(Math.random()*NAMES.length)],tier:'newbie',xp:0,truckId:null};
+G.drivers.push(d);
+showToast('Hired '+d.name+'!', 'success');
+updateAll();
+}
+
+function promoteDriver(d){
+if(d.tier==='newbie'&&d.xp>=PROMOTE.newbie){d.tier='experienced';showToast(d.name+' → Experienced!', 'success');}
+else if(d.tier==='experienced'&&d.xp>=PROMOTE.experienced){d.tier='expert';showToast(d.name+' → Expert!', 'success');}
+}
+
+function getEff(driverId){var d=G.drivers[driverId];return d?TIERS[d.tier].eff:1.0;}
+
+function openDriverModal(truckId){
+G.driverTruckId=truckId;
+var t=G.fleet.find(function(x){return x.id===truckId});
+if(!t)return;
+var cfg=TT[t.type];
+var curDrv=t.driverId!==null&&t.driverId!==undefined?G.drivers[t.driverId]:null;
+document.getElementById('driver-modal-truck-info').innerHTML=
+'<span class="truck-icon" style="background:'+cfg.color+'"></span><b>'+cfg.name+'</b><br>'+
+'Current driver: '+(curDrv?curDrv.name:'None');
+
+var list=document.getElementById('driver-list-modal');
+var avail=G.drivers.filter(function(d){return d.truckId===null||d.truckId===t.id});
+if(avail.length===0){list.innerHTML='<div class="empty-msg">No available drivers. Hire more!</div>';}
+else{
+list.innerHTML=avail.map(function(d){
+var isCur=t.driverId===d.id;
+return '<div class="dispatch-row'+(isCur?' selected':'')+'" onclick="assignDriver('+d.id+')">'+
+'<div style="flex:1"><div style="font-size:11px">'+d.name+(isCur?' ✓':'')+'</div>'+
+'<div style="font-size:9px;color:#888">'+d.tier+' | XP: '+d.xp+'</div></div></div>';
+}).join('');
+}
+document.getElementById('driver-modal').classList.add('show');
+}
+
+function assignDriver(driverId){
+var t=G.fleet.find(function(x){return x.id===G.driverTruckId});
+if(!t)return;
+if(t.driverId!==null&&t.driverId!==undefined){var old=G.drivers[t.driverId];if(old)old.truckId=null;}
+var newDrv=G.drivers[driverId];
+if(newDrv.truckId!==null&&t.id!==newDrv.truckId){var oldTruck=G.fleet.find(function(x){return x.id===newDrv.truckId});if(oldTruck)oldTruck.driverId=null;}
+t.driverId=driverId;newDrv.truckId=t.id;
+showToast(newDrv.name+' assigned to '+TT[t.type].name, 'success');
+closeDriverModal();updateAll();
+}
+
+function closeDriverModal(){document.getElementById('driver-modal').classList.remove('show');G.driverTruckId=0;}
+
+// ============ GAME LOOP ============
+function animate(){draw();update();requestAnimationFrame(animate);}
+
+function update(){
+if(G.paused)return;
+G.tick++;
+
+// Day cycle
+if(G.tick%CFG.dayTicks===0){
+G.day++;
+var wages=G.drivers.reduce(function(s,d){return s+TIERS[d.tier].wage},0);
+var maint=G.fleet.reduce(function(s,t){return s+TT[t.type].maint},0);
+G.balance-=wages+maint;
+showToast('Day '+G.day+' | Wages: $'+wages+' Maint: $'+maint, 'info');
+}
+
+checkExpiredOrders();
+
+// Move trucks
+G.fleet.forEach(function(t){
+if(t.state==='idle')return;
+var cfg=TT[t.type],eff=getEff(t.driverId),spd=cfg.speed*0.0008*eff*G.spd;
+var dx=t.tx-t.x,dy=t.ty-t.y,dist=Math.sqrt(dx*dx+dy*dy);
+if(dist<0.01){handleArrival(t);}
+else{t.x+=dx/dist*spd;t.y+=dy/dist*spd;}
+});
+
+// Update UI periodically
+G.uiTick++;
+if(G.uiTick%20===0){renderOrderCards();renderOrderBadge();renderTopBar();}
+}
+
+// ============ RENDERING ============
+function draw(){
+var ctx=G.ctx;
+ctx.fillStyle='#0f3460';ctx.fillRect(0,0,G.W,G.H);
+
+// Grid
+ctx.strokeStyle='rgba(109,74,255,0.08)';ctx.lineWidth=1;
+for(var x=0;x<G.W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,G.H);ctx.stroke();}
+for(var y=0;y<G.H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(G.W,y);ctx.stroke();}
+
+// Locations
+Object.values(LOC).forEach(function(loc){
+var lx=loc.x*G.W,ly=loc.y*G.H;
+var gl=ctx.createRadialGradient(lx,ly,0,lx,ly,45);
+gl.addColorStop(0,'rgba(109,74,255,0.2)');gl.addColorStop(1,'transparent');
+ctx.fillStyle=gl;ctx.beginPath();ctx.arc(lx,ly,45,0,Math.PI*2);ctx.fill();
+ctx.fillStyle='#6d4aff';ctx.beginPath();ctx.arc(lx,ly,10,0,Math.PI*2);ctx.fill();
+ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';
+ctx.fillText(loc.name,lx,ly-18);
+ctx.font='7px monospace';ctx.fillStyle='#888';
+ctx.fillText(loc.ft.map(function(f){return FT[f].icon}).join(' '),lx,ly+22);
+});
+
+// Orders on map
+G.orders.forEach(function(o){
+if(o.status==='delivered'||o.status==='expired')return;
+var ft=FT[o.ftId],pulse=1+Math.sin(Date.now()/400)*0.15;
+var opx=o.origin.x*G.W,opy=o.origin.y*G.H;
+var dpx=o.destination.x*G.W,dpy=o.destination.y*G.H;
+ctx.fillStyle=o.status==='available'?ft.color:(o.status==='accepted'?'#f39c12':'#ffd700');
+ctx.beginPath();ctx.arc(opx,opy,6*pulse,0,Math.PI*2);ctx.fill();
+ctx.fillStyle='#f39c12';ctx.beginPath();ctx.arc(dpx,dpy,6*pulse,0,Math.PI*2);ctx.fill();
+ctx.fillStyle='#ffd700';ctx.font='8px monospace';ctx.textAlign='center';
+ctx.fillText((o.units-o.deliveredUnits)+o.unitName,opx,opy-12);
+if(o.acceptedAtTick>0){
+var elapsed=G.tick-o.acceptedAtTick,pct=1-elapsed/o.deadlineTicks;
+if(pct<0.3){ctx.fillStyle='#ff6b6b';ctx.font='bold 12px monospace';ctx.fillText('⚠',opx,opy+18);}
+}
+});
+
+// Trucks
+G.fleet.forEach(function(t){
+var cfg=TT[t.type],sz=t.type==='heavy'?16:(t.type==='semi'?14:10);
+ctx.shadowColor=cfg.color;ctx.shadowBlur=10;ctx.fillStyle=cfg.color;
+ctx.fillRect(t.x*G.W-sz,t.y*G.H-sz/2,sz*2,sz);ctx.shadowBlur=0;
+var hasDriver=t.driverId!==null&&t.driverId!==undefined;
+ctx.fillStyle=t.state==='idle'?(hasDriver?'#4ecca3':'#888'):'#ff6b6b';
+ctx.beginPath();ctx.arc(t.x*G.W-sz-3,t.y*G.H,3,0,Math.PI*2);ctx.fill();
+if(t.cargo>0){ctx.fillStyle='#4ecca3';ctx.fillRect(t.x*G.W-sz+2,t.y*G.H-2,3,4);}
+if(t.state==='to_pickup'||t.state==='to_dropoff'){
+ctx.strokeStyle='rgba(109,74,255,0.4)';ctx.setLineDash([4,4]);
+ctx.beginPath();ctx.moveTo(t.x*G.W,t.y*G.H);ctx.lineTo(t.tx*G.W,t.ty*G.H);ctx.stroke();
+ctx.setLineDash([]);
+}
+});
+}
+
+// ============ UI RENDERING ============
+function updateAll(){renderTopBar();renderOrderCards();renderFleetCards();renderStaffCards();renderShopCards();renderOrderBadge();}
+
+function renderTopBar(){
+document.getElementById('balance').textContent='$'+G.balance.toLocaleString();
+document.getElementById('revenue').textContent='$'+G.rev.toLocaleString();
+document.getElementById('day-num').textContent=G.day;
+document.getElementById('truck-count').textContent=G.fleet.length+'/'+CFG.maxFleet;
+document.getElementById('driver-count').textContent=G.drivers.length;
+}
+
+function renderOrderCards(){
+var c=document.getElementById('order-cards');
+var avail=G.orders.filter(function(o){return o.status==='available'});
+var acc=G.orders.filter(function(o){return o.status==='accepted'||o.status==='in_transit'});
+var html='';
+
+if(avail.length>0){
+html+='<div class="section-label">Available — Tap to Accept</div>';
+html+=avail.map(function(o){
+var ft=FT[o.ftId],compat=G.fleet.filter(function(t){
+return t.state==='idle'&&t.driverId!==null&&TT[t.type].compat.indexOf(o.ftId)>=0;
+});
+return '<div class="card" onclick="acceptOrder('+o.id+')"><div class="card-row"><span class="card-title">'+o.ftIcon+' '+o.origin.name+' → '+o.destination.name+'</span><span class="card-reward">$'+o.reward.toLocaleString()+'</span></div><div class="card-sub">'+o.units+' '+o.unitName+' | Deadline: '+Math.ceil(o.deadlineTicks/60)+'s | Trucks: '+compat.length+'</div></div>';
+}).join('');
+}
+
+if(acc.length>0){
+html+='<div class="section-label" style="color:#f39c12">Active — Send Trucks One by One</div>';
+html+=acc.map(function(o){
+var elapsed=G.tick-o.acceptedAtTick,remaining=Math.max(0,o.deadlineTicks-elapsed);
+var secs=Math.ceil(remaining/60),pct=Math.max(0,(1-elapsed/o.deadlineTicks)*100);
+var isWarn=pct<30,isLate=pct<=0;
+var dispBtn=o.status==='accepted'?'<button class="btn btn-primary" style="margin-top:6px" onclick="event.stopPropagation();openDispatchModal('+o.id+')">➕ Dispatch ONE Truck</button>':'<span class="card-sub" style="color:#4ecca3">🚛 Trucks delivering...</span>';
+return '<div class="card"><div class="card-row"><span class="card-title">'+o.ftIcon+' '+o.origin.name+' → '+o.destination.name+'</span><span class="card-reward">$'+o.reward.toLocaleString()+'</span></div><div class="card-sub">'+o.deliveredUnits+'/'+o.units+' '+o.unitName+'</div><div class="card-row" style="margin-top:4px"><span class="badge badge-'+(isLate?'danger':isWarn?'warning':'ok')+'">'+(isLate?'EXPIRED':secs+'s')+'</span></div><div class="timer-bar"><div class="timer-fill" style="width:'+pct+'%;background:'+(isWarn?'#ff6b6b':'#4ecca3')+'"></div></div>'+dispBtn+'</div>';
+}).join('');
+}
+
+if(avail.length===0&&acc.length===0){html='<div class="empty-msg">No orders. Waiting...</div>';}
+c.innerHTML=html;
+}
+
+function renderFleetCards(){
+var c=document.getElementById('fleet-cards');
+if(G.fleet.length===0&&G.garage.length===0){c.innerHTML='<div class="empty-msg">No trucks. Visit Shop.</div>';return;}
+var html='';
+if(G.fleet.length>0){
+html+='<div class="section-label">Active Fleet</div>';
+html+=G.fleet.map(function(t){
+var cfg=TT[t.type],drv=t.driverId!==null&&t.driverId!==undefined?G.drivers[t.driverId]:null;
+var st=t.state==='idle'?'🟢 IDLE':t.state==='to_pickup'?'📍→ PICKUP':t.state==='to_dropoff'?'📦→ DELIVER':'BUSY';
+var ci=cfg.compat.map(function(f){return FT[f].icon}).join('/');
+var cargoInfo=t.cargo>0?'<span style="color:#4ecca3">● '+t.cargo+'</span>':'';
+var drvBtn=drv?'<span class="badge badge-'+drv.tier+'">'+drv.name.split(' ')[0]+'</span>':'<button class="btn btn-danger" style="width:auto;padding:3px 8px;font-size:9px" onclick="event.stopPropagation();openDriverModal('+t.id+')">+Driver</button>';
+return '<div class="card" onclick="openDriverModal('+t.id+')"><div class="card-row"><span class="card-title"><span class="truck-icon" style="background:'+cfg.color+'"></span>'+cfg.name+'</span><span class="card-sub">'+st+cargoInfo+'</span></div><div class="card-row" style="margin-top:4px"><span class="card-sub">'+ci+' | Cap: '+cfg.cap+'</span>'+drvBtn+'</div></div>';
+}).join('');
+}
+if(G.garage.length>0){
+html+='<div class="section-label">Garage</div>';
+html+=G.garage.map(function(item,idx){
+var cfg=TT[item.type];
+return '<div class="card"><div class="card-row"><span class="card-title"><span class="truck-icon" style="background:'+cfg.color+'"></span>'+cfg.name+'</span><button class="btn btn-buy" style="width:auto;padding:4px 10px;font-size:10px" onclick="deployTruck('+idx+')">Deploy</button></div></div>';
+}).join('');
+}
+c.innerHTML=html;
+}
+
+function renderStaffCards(){
+var c=document.getElementById('staff-cards');
+var html='';
+if(G.drivers.length>0){
+html+='<div class="section-label">Drivers</div>';
+html+=G.drivers.map(function(d){
+var truck=d.truckId!==null?G.fleet.find(function(t){return t.id===d.truckId}):null;
+return '<div class="card busy"><div class="card-row"><span class="card-title">'+d.name+'</span><span class="badge badge-'+d.tier+'">'+d.tier+'</span></div><div class="card-sub">XP: '+d.xp+' | Wage: $'+TIERS[d.tier].wage+'/day | Truck: '+(truck?TT[truck.type].name:'Unassigned')+'</div></div>';
+}).join('');
+}
+html+='<div style="margin-top:8px"><button class="btn btn-buy" onclick="hireDriver()">Hire Driver ($'+CFG.hireCost+')</button><div class="card-sub" style="text-align:center;margin-top:4px">'+G.drivers.length+'/'+CFG.maxFleet+'</div></div>';
+c.innerHTML=html;
+}
+
+function renderShopCards(){
+var c=document.getElementById('shop-cards');
+c.innerHTML=Object.entries(TT).map(function(entry){
+var key=entry[0],cfg=entry[1];
+var can=G.balance>=cfg.cost&&G.fleet.length+G.garage.length<CFG.maxFleet;
+var ci=cfg.compat.map(function(f){return FT[f].icon}).join('/');
+return '<div class="card"><div class="card-row"><span class="card-title"><span class="truck-icon" style="background:'+cfg.color+'"></span>'+cfg.name+'</span><span class="card-reward">$'+cfg.cost.toLocaleString()+'</span></div><div class="card-sub">Cap: '+cfg.cap+' | Speed: '+cfg.speed+' | Maint: $'+cfg.maint+'/day</div><div class="card-sub">Freight: '+ci+'</div><button class="btn btn-buy" style="margin-top:6px" '+(can?'':'disabled')+' onclick="buyTruck(\''+key+'\')">'+(can?'Purchase':(G.balance<cfg.cost?'Need $':'Full'))+'</button></div>';
+}).join('');
+}
+
+function renderOrderBadge(){
+var n=G.orders.filter(function(o){return o.status==='available'}).length;
+var b=document.getElementById('order-badge');
+b.textContent=n;b.style.display=n>0?'inline':'none';
+}
+
+function showToast(msg,type){
+var area=document.getElementById('toast-area');
+var el=document.createElement('div');
+el.className='toast '+(type||'');
+el.textContent=msg;
+area.appendChild(el);
+setTimeout(function(){el.classList.add('fadeout');setTimeout(function(){el.remove()},300)},3000);
+while(area.children.length>3)area.removeChild(area.firstChild);
+}
+</script>
 </body>
 </html>
