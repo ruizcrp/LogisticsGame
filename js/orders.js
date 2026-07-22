@@ -1,210 +1,111 @@
-// js/orders.js - Order generation and lifecycle
+// ===== GENERATE ORDERS FROM ACTIVE CONTRACTS =====
+function generateOrders() {
+  var now = Date.now();
+  if (now - P.lastOrderTime < CFG.orderIntMs) return;
 
-let orderIdCounter = 0;
-let lastOrderTime = 0;
+  var active = P.contracts.filter(function(c) { return c && c.active; });
+  if (active.length === 0) return;
 
-export function generateOrders() {
-    const now = Date.now();
-    if (now - lastOrderTime < GAME_CONFIG.orderRefreshInterval) return;
-    
-    const existingAvailable = GameState.orders.filter(o => o.status === 'available').length;
-    if (existingAvailable >= 15) return;
-    
-    const numOrders = 1 + Math.floor(Math.random() * 2);
-    const freightTypeKeys = Object.keys(FREIGHT_TYPES);
-    
-    for (let i = 0; i < numOrders && GameState.orders.length < 20; i++) {
-        const freightTypeId = freightTypeKeys[Math.floor(Math.random() * freightTypeKeys.length)];
-        const freightType = FREIGHT_TYPES[freightTypeId];
-        
-        // Pick compatible origin and destination
-        const compatibleLocations = Object.values(LOCATIONS).filter(loc =>
-            loc.freightTypes.includes(freightTypeId)
-        );
-        
-        if (compatibleLocations.length < 2) continue;
-        
-        const origin = compatibleLocations[Math.floor(Math.random() * compatibleLocations.length)];
-        let destination = compatibleLocations[Math.floor(Math.random() * compatibleLocations.length)];
-        while (destination === origin && compatibleLocations.length > 1) {
-            destination = compatibleLocations[Math.floor(Math.random() * compatibleLocations.length)];
-        }
-        
-        // Generate units based on freight type
-        const units = generateUnitsForFreight(freightTypeId);
-        
-        // Calculate base reward
-        const distance = calculateDistance(origin, destination);
-        const baseReward = calculateBaseReward(freightTypeId, units, distance);
-        
-        // Deadline in hours
-        const deadlineHours = Math.floor(
-            GAME_CONFIG.minDeadlineHours +
-            Math.random() * (GAME_CONFIG.maxDeadlineHours - GAME_CONFIG.minDeadlineHours)
-        );
-        
-        const order = {
-            id: ++orderIdCounter,
-            freightType: freightTypeId,
-            freightTypeName: freightType.name,
-            freightIcon: freightType.icon,
-            units,
-            unitName: freightType.unit,
-            origin: {
-                id: origin.id,
-                name: origin.name,
-                x: origin.x,
-                y: origin.y
-            },
-            destination: {
-                id: destination.id,
-                name: destination.name,
-                x: destination.x,
-                y: destination.y
-            },
-            reward: baseReward,
-            deadline: deadlineHours,
-            createdAt: Date.now(),
-            status: 'available',
-            assignedTrucks: [],
-            completedBy: [] // Track which trucks contributed
-        };
-        
-        GameState.orders.push(order);
-    }
-    
-    lastOrderTime = now;
-}
+  active.forEach(function(c) {
+    if (Math.random() > 0.6) return;
+    var ft = c.companyData.ft[Math.floor(Math.random() * c.companyData.ft.length)];
+    var locs = Object.values(LOC).filter(function(l) { return l.ft.indexOf(ft) >= 0; });
+    if (locs.length < 2) return;
 
-function generateUnitsForFreight(freightType) {
-    const ranges = {
-        bulk: { min: 5, max: 20 },
-        container: { min: 3, max: 15 },
-        cool: { min: 2, max: 10 },
-        special: { min: 1, max: 8 }
-    };
-    
-    const r = ranges[freightType];
-    return Math.floor(r.min + Math.random() * (r.max - r.min));
-}
+    var origin = locs[Math.floor(Math.random() * locs.length)];
+    var dest = locs[Math.floor(Math.random() * locs.length)];
+    while (dest === origin) dest = locs[Math.floor(Math.random() * locs.length)];
 
-function calculateDistance(origin, destination) {
-    const dx = destination.x - origin.x;
-    const dy = destination.y - origin.y;
-    return Math.sqrt(dx * dx + dy * dy);
-}
+    var dv = c.companyData.dailyVol;
+    var units = Math.floor(dv[0] + Math.random() * (dv[1] - dv[0]));
+    var dist = Math.abs(dest.x - origin.x) + Math.abs(dest.y - origin.y);
+    var reward = Math.round(units * 12 * (1 + dist) * (0.8 + Math.random() * 0.4));
 
-function calculateBaseReward(freightType, units, distance) {
-    const baseRates = {
-        bulk: 15,
-        container: 25,
-        cool: 40,
-        special: 60
-    };
-    
-    const rate = baseRates[freightType];
-    const distanceMultiplier = 50 + distance * 100;
-    
-    return Math.round(units * rate * distanceMultiplier * (0.9 + Math.random() * 0.3));
-}
-
-export function assignTrucksToOrder(trucks, order) {
-    // Validate all trucks are compatible with order freight type
-    const freightType = order.freightType;
-    for (const truck of trucks) {
-        const truckConfig = TRUCK_TYPES[truck.type];
-        if (!truckConfig.compatibleFreight.includes(freightType)) {
-            notify(`Truck ${TRUCK_TYPES[truck.type].name} incompatible with ${FREIGHT_TYPES[freightType].name}`, 'error');
-            return false;
-        }
-    }
-    
-    // Mark order as in transit
-    order.status = 'in_transit';
-    order.assignedTrucks = trucks.map(t => t.id);
-    
-    // Set destinations for all trucks
-    const destination = order.destination;
-    trucks.forEach(truck => {
-        truck.state = 'delivering';
-        truck.tx = destination.x;
-        truck.ty = destination.y;
-        truck.currentOrder = order.id;
+    P.pendingOrders.push({
+      id: uid('order'),
+      company: c.company,
+      contractId: c.id,
+      ft: ft,
+      ftIcon: FT[ft].icon,
+      ftName: FT[ft].name,
+      unitName: FT[ft].unit,
+      units: units,
+      deliveredUnits: 0,
+      origin: origin,
+      destination: dest,
+      reward: reward,
+      status: 'pending',
+      acceptedAtTick: 0
     });
-    
-    const truckNames = trucks.map(t => TRUCK_TYPES[t.type].name).join(', ');
-    notify(`${truckNames} → ${destination.name} (${order.units} ${order.unitName})`, 'success');
-    
-    return true;
+  });
+
+  P.lastOrderTime = now;
+  renderOrderBadge();
+  renderOrders();
 }
 
-export function handleDeliveryCompletion(truck) {
-    const order = GameState.orders.find(o => o.id === truck.currentOrder);
-    if (!order) return;
-    
-    // Track completion
-    if (!order.completedBy.includes(truck.id)) {
-        order.completedBy.push(truck.id);
-    }
-    
-    // Check if order is fully delivered
-    const totalAssignedCapacity = GameState.fleet
-        .filter(t => order.assignedTrucks.includes(t.id))
-        .reduce((sum, t) => sum + TRUCK_TYPES[t.type].capacity, 0);
-    
-    if (totalAssignedCapacity >= order.units) {
-        // Calculate final reward with penalty
-        const penalty = calculateDeadlinePenalty(order);
-        const finalReward = order.reward - penalty.penaltyAmount;
-        
-        // Distribute reward among contributing trucks' drivers
-        const rewardPerDriver = Math.floor(finalReward / order.completedBy.length);
-        
-        GameState.balance += finalReward;
-        GameState.totalRevenue += finalReward;
-        
-        // Give XP to drivers
-        order.completedBy.forEach(truckId => {
-            const truck = GameState.fleet.find(t => t.id === truckId);
-            if (truck && GameState.drivers[truck.empIdx]) {
-                GameState.drivers[truck.empIdx].xp += Math.round(finalReward / order.completedBy.length);
-                promoteDriver(GameState.drivers[truck.empIdx]);
-            }
-        });
-        
-        // Remove order
-        GameState.orders = GameState.orders.filter(o => o.id !== order.id);
-        
-        // Release trucks
-        order.assignedTrucks.forEach(truckId => {
-            const t = GameState.fleet.find(t => t.id === truckId);
-            if (t) {
-                t.state = 'idle';
-                t.currentOrder = null;
-            }
-        });
-        
-        const statusMsg = penalty.penaltyAmount > 0
-            ? `+$${finalReward} (-${penalty.penaltyAmount} late penalty)`
-            : `+$${finalReward}`;
-        
-        notify(`Delivered! ${statusMsg}`, 'success');
-        updateAll();
-    } else {
-        notify(`Delivered partial load to ${order.destination.name}`, 'info');
-    }
-    
-    truck.state = 'idle';
-    truck.currentOrder = null;
+// ===== ACCEPT ORDER =====
+function acceptOrder(orderId) {
+  var o = P.pendingOrders.find(function(x) { return x.id === orderId; });
+  if (!o) return;
+  o.status = 'accepted';
+  o.acceptedAtTick = P.tick;
+  P.pendingOrders.splice(P.pendingOrders.indexOf(o), 1);
+  P.activeOrders.push(o);
+  showToast('Order accepted! Go to Fleet tab to dispatch a truck.', 'success');
+  renderOrders();
+  renderOrderBadge();
 }
 
-export function getOrderDeadlineProgress(order) {
-    const elapsed = Date.now() - order.createdAt;
-    const deadlineMs = order.deadline * 3600 * 1000;
-    const progress = elapsed / deadlineMs;
-    return {
-        percentRemaining: Math.max(0, (1 - progress) * 100),
-        isWarning: progress > (1 - GAME_CONFIG.deadlineWarningThreshold),
-        isOverdue: progress > 1
-    };
+// ===== CHECK EXPIRED ORDERS =====
+function checkExpiredOrders() {
+  P.activeOrders.forEach(function(o) {
+    if (o.status !== 'accepted' && o.status !== 'in_transit') return;
+    if (o.acceptedAtTick === 0) return;
+    var elapsed = P.tick - o.acceptedAtTick;
+    var deadline = 5400; // 1.5 game-days
+    if (elapsed > deadline) {
+      if (o.deliveredUnits > 0) {
+        var partial = Math.round(o.reward * CFG.latePct * (o.deliveredUnits / o.units));
+        P.balance += partial;
+        P.rev += partial;
+        showToast('Order ' + o.id + ' expired LATE. Partial: +$' + partial, 'error');
+      } else {
+        var fine = Math.round(o.reward * CFG.finePct);
+        P.balance -= fine;
+        showToast('Order ' + o.id + ' EXPIRED! Fine: -$' + fine, 'error');
+      }
+      // Release assigned trucks
+      o.assignedTrucks = o.assignedTrucks || [];
+      o.assignedTrucks.forEach(function(tid) {
+        var t = P.fleet.find(function(x) { return x.id === tid; });
+        if (t) { t.state = 'idle'; t.orderId = null; t.cargo = 0; }
+      });
+      o.status = 'expired';
+    }
+  });
+  // Remove expired/delivered
+  P.activeOrders = P.activeOrders.filter(function(o) {
+    return o.status !== 'expired' && o.status !== 'delivered';
+  });
+}
+
+// ===== WEEKLY VOLUME CHECK =====
+function checkWeeklyVolumes() {
+  if ((P.day - 1) % 7 !== 0 || P.day === 1) return;
+
+  var totalFine = 0;
+  P.contracts.forEach(function(c) {
+    if (!c || !c.active) return;
+    if (c.weeklyVolume < c.weeklyGoal) {
+      var shortage = c.weeklyGoal - c.weeklyVolume;
+      var fine = Math.round(shortage * c.companyData.finePct * 100);
+      totalFine += fine;
+      c.active = false;
+      showToast(c.company + ' MISSED weekly goal! Fine: -$' + fine + '. Contract disbanded!', 'error');
+    }
+    c.weeklyVolume = 0;
+    c.dailyVolume = 0;
+  });
+  P.balance -= totalFine;
 }
