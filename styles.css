@@ -1,4 +1,9 @@
 * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+/* Panel visibility fix - inactive panels truly hidden */
+.panel:not(.active) {
+  display: none !important;
+  visibility: hidden !important;
+}
 html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0f0c29 0%, #1a1a2e 50%, #16213e 100%); color: #fff; overflow: hidden; width: 100vw; height: 100vh; }
 
 #top-bar { display: flex; align-items: center; justify-content: space-between; height: 48px; background: linear-gradient(90deg, #16213e 0%, #1a1a2e 50%, #16213e 100%); border-bottom: 2px solid #6d4aff; font-size: 12px; z-index: 30; position: relative; padding: 0 10px; box-shadow: 0 2px 10px rgba(109,74,255,0.3); }
@@ -76,4 +81,22 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-se
 #tab-map .empty-msg,
 #tab-map .section-lbl {
   display: none;
+}
+#pause-btn {
+  background: linear-gradient(90deg, #f39c12 0%, #e67e22 100%);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-right: 8px;
+  transition: all 0.2s ease;
+}
+#pause-btn.playing {
+  background: linear-gradient(90deg, #4ecca3 0%, #3ddc97 100%);
+}
+#pause-btn:active {
+  transform: scale(0.95);
 }
