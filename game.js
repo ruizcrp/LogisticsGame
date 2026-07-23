@@ -12,7 +12,7 @@ var LOC = { downtown: { name: 'Downtown', x: 0.25, y: 0.38, ft: ['container'] },
 
 var NAMES = ['Alex', 'Jordan', 'Taylor', 'Casey', 'Sam', 'Riley', 'Morgan', 'Quinn'];
 
-var CFG = { maxFleet: 20, maxContracts: 5, orderInterval: 8000, dayTicks: 3600, hireCost: 300, latePct: 0.5, finePct: 0.25, fuelPerTrip: 0.15, repairAmt: 30, WEEKLY_MARKET_SIZE: 8, WEEKLY_DRIVER_SIZE: 4, WEEK_LENGTH: 7, AVAILABLE_CONTRACTS_PER_WEEK: 5 };
+var CFG = { maxFleet: 20, maxContracts: 5, orderInterval: 8000, dayTicks: 3600, hireCost: 300, latePct: 0.5, finePct: 0.25, fuelPerTrip: 0.15, repairAmt: 30, WEEKLY_MARKET_SIZE: 8, WEEKLY_DRIVER_SIZE: 4, WEEK_LENGTH: 7, AVAILABLE_CONTRACTS_PER_WEEK: 5, ORDER_TIMEOUT: 14400 };
 
 var G = { cash: 5000, revenue: 0, day: 1, week: 1, tick: 0, uiTick: 0, fleet: [], drivers: [], hubs: [], contracts: [], orders: [], availableContracts: [], canvas: null, ctx: null, W: 0, H: 0, truckId: 0, orderId: 0, contractId: 0, hubId: 0, dispatchTruckId: 0, driverTruckId: 0, marketRefreshedAtWeek: 1, driverRefreshedAtWeek: 1, contractsRefreshedAtWeek: 1, weeklyMarket: [], weeklyDrivers: [] };
 
@@ -78,7 +78,7 @@ function handleArrival(t) {
     if (Math.random() < 0.03) t.damage = Math.min(100, t.damage + 15);
     if (o.delivered >= o.units) {
       var elapsed = G.tick - o.acceptedTick;
-      var late = elapsed > 5400;
+      var late = elapsed > CFG.ORDER_TIMEOUT;
       var reward = late ? Math.round(o.reward * CFG.latePct) : o.reward;
       G.cash += reward; G.revenue += reward;
       if (t.assignedDriver !== null) { var d = G.drivers[t.assignedDriver]; d.xp += Math.round(reward / 50); promoteDriver(d); }
@@ -128,7 +128,7 @@ function update() {
     G.cash -= total; toast('Day ' + G.day + ' | -$' + total, 'info');
   }
   G.fleet.forEach(function(t) {
-    if (t.state === 'idle' || t.state === 'returning') return;
+    if (t.state === 'idle') return;
     var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
     var speedMod = drv ? DT[drv.type].speedMod : 1.0;
     var spd = t.speed * 0.0008 * speedMod;
@@ -138,7 +138,7 @@ function update() {
   G.orders.forEach(function(o) {
     if (o.status !== 'accepted' && o.status !== 'in_transit') return;
     var elapsed = G.tick - o.acceptedTick;
-    if (elapsed > 5400) {
+    if (elapsed > CFG.ORDER_TIMEOUT) {
       if (o.delivered > 0) { var partial = Math.round(o.reward * CFG.latePct * (o.delivered / o.units)); G.cash += partial; G.revenue += partial; toast('Order expired: +' + partial, 'warning'); } else { var fine = Math.round(o.reward * CFG.finePct); G.cash -= fine; toast('Order EXPIRED! -$' + fine, 'error'); }
       o.assignedTrucks = o.assignedTrucks || [];
       for (var j = 0; j < o.assignedTrucks.length; j++) { var tr = null; for (var k = 0; k < G.fleet.length; k++) { if (G.fleet[k].id === o.assignedTrucks[j]) { tr = G.fleet[k]; break; } } if (tr) { tr.state = 'idle'; tr.orderId = null; tr.cargo = 0; } }
@@ -166,7 +166,7 @@ function renderOrders() {
     html.push('<div class="section-lbl">Pending Orders - Tap to Accept</div>');
     html = html.concat(G.orders.filter(function(o) { return o.status === 'pending'; }).map(function(o) {
       var compat = G.fleet.filter(function(t) { return t.state === 'idle' && t.assignedDriver !== null && t.fuel > 0.15 && (TT_BASE[t.type].compat.indexOf(o.ft) >= 0 || TT_BASE[t.type].compat.indexOf('all') >= 0); }).length;
-      return '<div class="card" onclick="acceptOrder(' + o.id + ');">' + '<div class="card-row"><span class="card-title">' + FT[o.ft].icon + ' <b>' + o.from.name + '</b> → <b>' + o.to.name + '</b></span><span class="card-reward">$' + o.reward + '</span></div>' + '<div class="card-sub">' + o.units + FT[o.ft].unit + ' | Idle compatible trucks: ' + compat + '</div></div>';
+      return '<div class="card" onclick="acceptOrder(' + o.id + ');">' + '<div class="card-row"><span class="card-title">' + FT[o.ft].icon + ' <b>' + o.from.name + '</b> → <b>' + o.to.name + '</b></span><span class="card-reward">$' + o.reward + '</span></div>' + '<div class="card-sub">' + o.units + FT[o.ft].unit + ' | Idle compatible trucks: ' + compat + '</div>' + '<div class="card-sub" style="color:#f39c12">⏱ Valid for ' + (CFG.ORDER_TIMEOUT / CFG.dayTicks).toFixed(0) + ' days after accepting</div></div>';
     }));
   }
   var active = G.orders.filter(function(o) { return o.status === 'accepted' || o.status === 'in_transit'; });
@@ -174,7 +174,11 @@ function renderOrders() {
     html.push('<div class="section-lbl" style="color:#f39c12">Active Orders (partial deliveries stay active)</div>');
     html = html.concat(active.map(function(o) {
       var pct = o.units > 0 ? Math.round(o.delivered / o.units * 100) : 0;
-      return '<div class="card"><div class="card-row"><span class="card-title">' + FT[o.ft].icon + ' <b>' + o.from.name + '</b> → <b>' + o.to.name + '</b></span><span class="card-reward">$' + o.reward + '</span></div>' + '<div class="card-sub">' + o.delivered + '/' + o.units + ' ' + FT[o.ft].unit + ' (' + pct + '%)</div>' + '<div class="progress"><div class="progress-fill" style="width:' + pct + '%;background:#4ecca3"></div></div></div>';
+      var elapsed = G.tick - o.acceptedTick;
+      var remainingTicks = CFG.ORDER_TIMEOUT - elapsed;
+      var daysLeft = Math.max(0, remainingTicks / CFG.dayTicks).toFixed(1);
+      var urgency = remainingTicks < CFG.dayTicks ? '#ff6b6b' : (remainingTicks < CFG.dayTicks * 2 ? '#f39c12' : '#4ecca3');
+      return '<div class="card"><div class="card-row"><span class="card-title">' + FT[o.ft].icon + ' <b>' + o.from.name + '</b> → <b>' + o.to.name + '</b></span><span class="card-reward">$' + o.reward + '</span></div>' + '<div class="card-sub">' + o.delivered + '/' + o.units + ' ' + FT[o.ft].unit + ' (' + pct + '%)</div>' + '<div class="card-sub" style="color:' + urgency + '">⏱ ' + daysLeft + ' days remaining</div>' + '<div class="progress"><div class="progress-fill" style="width:' + pct + '%;background:#4ecca3"></div></div></div>';
     }));
   }
   if (html.length === 0) html.push('<div class="empty-msg"><span>📋</span>No orders. Sign contracts!</div>');
