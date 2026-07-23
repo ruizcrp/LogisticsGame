@@ -27,11 +27,15 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-se
 .money { color: #4ecca3; text-shadow: 0 0 5px rgba(78,204,163,0.5); }
 .day-count { color: #ffd700; }
 
-/* Canvas */
+/* Canvas - FIXED: Ensure proper z-index and positioning */
+#canvas-container {
+  position: absolute; top: 48px; left: 0; right: 0; bottom: 54px;
+  z-index: 1;
+}
 #canvas { 
   display: block; outline: none; 
   background: radial-gradient(circle at center, #0f3460 0%, #0a1929 100%); 
-  position: absolute; top: 48px; bottom: 54px; width: 100%; z-index: 1; 
+  position: relative; width: 100%; height: 100%; 
   box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
 }
 
@@ -236,6 +240,10 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-se
       <span class="stat-value day-count" id="day">1</span>
     </div>
     <div class="stat-item">
+      <span class="stat-label">Week</span>
+      <span class="stat-value" id="week">1</span>
+    </div>
+    <div class="stat-item">
       <span class="stat-label">Contracts</span>
       <span class="stat-value" id="ctr">0/5</span>
     </div>
@@ -246,7 +254,9 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-se
   </div>
 </div>
 
-<canvas id="canvas"></canvas>
+<div id="canvas-container">
+  <canvas id="canvas"></canvas>
+</div>
 
 <div id="toast-area"></div>
 
@@ -304,7 +314,7 @@ var FT = {
   special: { name: 'Special', icon: '⚠️', unit: 'unt' }
 };
 
-// 5 TRUCK TIERS - Base ranges for daily market generation
+// 5 TRUCK TIERS
 var TT_BASE = {
   t1: { name: 'Basic Van', costMin: 1800, costMax: 2200, capMin: 2, capMax: 5, speedMin: 2, speedMax: 4, color: '#888', maint: 30, compat: ['bulk', 'container'] },
   t2: { name: 'Standard Truck', costMin: 3600, costMax: 4400, capMin: 5, capMax: 9, speedMin: 3, speedMax: 5, color: '#6d4aff', maint: 60, compat: ['bulk', 'container', 'cool'] },
@@ -363,8 +373,9 @@ var CFG = {
   finePct: 0.25,
   fuelPerTrip: 0.15,
   repairAmt: 30,
-  MARKET_SIZE: 6,  // How many trucks in daily market
-  MARKET_REFRESH_DAY: 1  // Day when market refreshes
+  WEEKLY_MARKET_SIZE: 8,   // Trucks appearing per week
+  WEEKLY_DRIVER_SIZE: 4,   // Drivers appearing per week
+  WEEK_LENGTH: 7           // Days per week
 };
 
 // ======================
@@ -374,6 +385,7 @@ var G = {
   cash: 5000,
   revenue: 0,
   day: 1,
+  week: 1,
   tick: 0,
   uiTick: 0,
   fleet: [],
@@ -391,18 +403,20 @@ var G = {
   hubId: 0,
   dispatchTruckId: 0,
   driverTruckId: 0,
-  lastWeeklyCheck: 1,
-  dailyMarket: [],  // Available trucks for today
-  marketRefreshedAtDay: 1  // Last time market was refreshed
+  lastWeeklyReset: 0,
+  weeklyMarket: [],       // Available trucks for this week
+  weeklyDrivers: [],      // Available drivers for this week
+  marketRefreshedAtWeek: 1,
+  driverRefreshedAtWeek: 1
 };
 
 // ======================
-// DAILY MARKET SYSTEM
+// WEEKLY MARKET SYSTEM - FIXED
 // ======================
-function generateDailyMarket(day) {
-  G.dailyMarket = [];
+function generateWeeklyMarket(week) {
+  G.weeklyMarket = [];
   
-  // Determine which truck tiers are available today (random selection)
+  // Determine which truck tiers are available this week (random selection)
   var availableTiers = Object.keys(TT_BASE);
   // Shuffle tiers
   for (var i = availableTiers.length - 1; i > 0; i--) {
@@ -412,7 +426,7 @@ function generateDailyMarket(day) {
     availableTiers[j] = temp;
   }
   
-  // Take 3-5 random tiers for today's market
+  // Take 3-5 random tiers for this week's market
   var tierCount = 3 + Math.floor(Math.random() * 3); // 3-5 tiers
   var selectedTiers = availableTiers.slice(0, Math.min(tierCount, availableTiers.length));
   
@@ -422,7 +436,7 @@ function generateDailyMarket(day) {
     var numTrucks = 1 + Math.floor(Math.random() * 2); // 1 or 2
     
     for (var t = 0; t < numTrucks; t++) {
-      if (G.dailyMarket.length >= CFG.MARKET_SIZE) break;
+      if (G.weeklyMarket.length >= CFG.WEEKLY_MARKET_SIZE) break;
       
       // Random stats within tier ranges
       var cost = Math.round(base.costMin + Math.random() * (base.costMax - base.costMin));
@@ -433,45 +447,98 @@ function generateDailyMarket(day) {
       var avgCost = (base.costMin + base.costMax) / 2;
       var dealType = cost < avgCost * 0.9 ? 'deal' : (cost > avgCost * 1.1 ? 'hot' : '');
       
-      G.dailyMarket.push({
+      G.weeklyMarket.push({
         tierKey: tierKey,
         cost: cost,
         capacity: cap,
         speed: speed,
         dealType: dealType,
         sold: false,
-        expiresDay: day + 1  // Expires tomorrow
+        expiresWeek: week + 1  // Expires next week
       });
     }
   });
   
-  // Ensure minimum 4 items
-  while (G.dailyMarket.length < 4) {
+  // Ensure minimum 5 items
+  while (G.weeklyMarket.length < 5) {
     var randomTier = Object.keys(TT_BASE)[Math.floor(Math.random() * 5)];
     var base = TT_BASE[randomTier];
     var cost = Math.round(base.costMin + Math.random() * (base.costMax - base.costMin));
     var cap = Math.floor(base.capMin + Math.random() * (base.capMax - base.capMin));
     var speed = base.speedMin + Math.random() * (base.speedMax - base.speedMin);
-    G.dailyMarket.push({
+    G.weeklyMarket.push({
       tierKey: randomTier,
       cost: cost,
       capacity: cap,
       speed: speed,
       dealType: '',
       sold: false,
-      expiresDay: day + 1
+      expiresWeek: week + 1
     });
   }
   
-  return G.dailyMarket;
+  return G.weeklyMarket;
 }
 
-// Check if market needs refreshing
+function generateWeeklyDrivers(week) {
+  G.weeklyDrivers = [];
+  
+  // Select 2-4 driver tiers randomly
+  var availableTiers = Object.keys(DT);
+  for (var i = availableTiers.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp = availableTiers[i];
+    availableTiers[i] = availableTiers[j];
+    availableTiers[j] = temp;
+  }
+  
+  var tierCount = 2 + Math.floor(Math.random() * 3); // 2-4 tiers
+  var selectedTiers = availableTiers.slice(0, Math.min(tierCount, availableTiers.length));
+  
+  selectedTiers.forEach(function(tierKey) {
+    if (G.weeklyDrivers.length >= CFG.WEEKLY_DRIVER_SIZE) return;
+    
+    var base = DT[tierKey];
+    var idx = Object.keys(DT).indexOf(tierKey);
+    var cost = CFG.hireCost * (idx + 1);
+    
+    // Each tier appears 1-2 times
+    var num = 1 + Math.floor(Math.random() * 2);
+    for (var n = 0; n < num && G.weeklyDrivers.length < CFG.WEEKLY_DRIVER_SIZE; n++) {
+      var name = NAMES[Math.floor(Math.random() * NAMES.length)] + ' #' + (G.weeklyDrivers.length + 1);
+      G.weeklyDrivers.push({
+        type: tierKey,
+        cost: cost,
+        name: name,
+        sold: false,
+        expiresWeek: week + 1
+      });
+    }
+  });
+  
+  return G.weeklyDrivers;
+}
+
+// Check if markets need refreshing (weekly)
 function checkMarketRefresh() {
-  if (G.day !== G.marketRefreshedAtDay && G.day > G.marketRefreshedAtDay) {
-    toast('New day! Market refreshed with ' + G.dailyMarket.length + ' trucks.', 'info');
-    G.marketRefreshedAtDay = G.day;
-    generateDailyMarket(G.day);
+  var currentWeek = Math.ceil(G.day / CFG.WEEK_LENGTH);
+  
+  if (currentWeek !== G.marketRefreshedAtWeek) {
+    toast('Week ' + currentWeek + '! New trucks available in Market!', 'info');
+    G.marketRefreshedAtWeek = currentWeek;
+    generateWeeklyMarket(currentWeek);
+    renderShop();
+  }
+}
+
+function checkDriverRefresh() {
+  var currentWeek = Math.ceil(G.day / CFG.WEEK_LENGTH);
+  
+  if (currentWeek !== G.driverRefreshedAtWeek) {
+    toast('Week ' + currentWeek + '! New drivers available in Market!', 'info');
+    G.driverRefreshedAtWeek = currentWeek;
+    generateWeeklyDrivers(currentWeek);
+    renderShop();
   }
 }
 
@@ -486,7 +553,6 @@ function uid(type) {
   return 0;
 }
 
-// Create owned truck with specific stats (not randomized - these are fixed)
 function createOwnedTruck(tierKey, cost, cap, speed) {
   return {
     id: uid('truck'),
@@ -564,13 +630,15 @@ window.onload = function() {
   G.fleet[0].tx = G.hubs[0].x;
   G.fleet[0].ty = G.hubs[0].y;
   
-  // Initialize daily market
-  G.marketRefreshedAtDay = 1;
-  generateDailyMarket(1);
+  // Initialize weekly market (starting week 1)
+  G.marketRefreshedAtWeek = 1;
+  G.driverRefreshedAtWeek = 1;
+  generateWeeklyMarket(1);
+  generateWeeklyDrivers(1);
   
   renderAll();
   startGame();
-  console.log('Game initialized with daily market!');
+  console.log('Game initialized with weekly market!');
 };
 
 function initCanvas() {
@@ -598,7 +666,7 @@ function setupNav() {
 // ACTIONS
 // ======================
 window.buyTruckFromMarket = function(index) {
-  var item = G.dailyMarket[index];
+  var item = G.weeklyMarket[index];
   if (!item || item.sold) { toast('Truck already bought!', 'error'); return; }
   
   if (G.cash < item.cost) { toast('Need $' + item.cost.toLocaleString(), 'error'); return; }
@@ -606,7 +674,6 @@ window.buyTruckFromMarket = function(index) {
   
   G.cash -= item.cost;
   
-  // Create owned truck with THESE EXACT stats
   var t = createOwnedTruck(item.tierKey, item.cost, item.capacity, item.speed);
   var hub = G.hubs[0];
   if (hub) { t.x = hub.x; t.y = hub.y; t.tx = hub.x; t.ty = hub.y; }
@@ -616,6 +683,25 @@ window.buyTruckFromMarket = function(index) {
   
   toast('Bought ' + TT_BASE[item.tierKey].name + '! Cap: ' + t.capacity + ', Speed: ' + t.speed.toFixed(1), 'success');
   renderFleet();
+  renderShop();
+  renderTopBar();
+};
+
+window.buyDriverFromMarket = function(index) {
+  var item = G.weeklyDrivers[index];
+  if (!item || item.sold) { toast('Driver already hired!', 'error'); return; }
+  
+  if (G.cash < item.cost) { toast('Need $' + item.cost.toLocaleString(), 'error'); return; }
+  if (G.drivers.length >= CFG.maxFleet) { toast('Max drivers!', 'error'); return; }
+  
+  G.cash -= item.cost;
+  var d = createDriver(item.type);
+  d.name = item.name;  // Use market-generated name
+  G.drivers.push(d);
+  item.sold = true;
+  
+  toast('Hired ' + d.name + '!', 'success');
+  renderDrivers();
   renderShop();
   renderTopBar();
 };
@@ -666,7 +752,8 @@ window.signContract = function(companyIdx) {
     companyData: comp,
     weeklyVol: 0,
     weeklyGoal: comp.weeklyVol,
-    active: true
+    active: true,
+    signedWeek: G.week
   });
   toast('Signed ' + comp.name + '! Weekly goal: ' + comp.weeklyVol, 'success');
   renderContracts();
@@ -781,9 +868,7 @@ window.returnToHub = function(tid, hid) {
   renderFleet();
 };
 
-// KEY FIX: Ensure we find correct truck and set it idle after arrival
 window.dispatchToPickup = function(tid, oid) {
-  // Find by ID carefully
   var t = null;
   for (var i = 0; i < G.fleet.length; i++) {
     if (G.fleet[i].id === tid) { t = G.fleet[i]; break; }
@@ -875,14 +960,15 @@ window.assignDriver = function(did) {
 };
 
 // ======================
-// ORDER GENERATION
+// ORDER GENERATION - WEEKLY RANDOMIZED
 // ======================
 function generateOrders() {
   var acts = G.contracts.filter(function(c) { return c.active; });
   if (acts.length === 0) return;
   
   acts.forEach(function(c) {
-    if (Math.random() > 0.6) return;
+    // Random chance each tick (reduced frequency)
+    if (Math.random() > 0.4) return;
     var ft = c.companyData.ft[Math.floor(Math.random() * c.companyData.ft.length)];
     var locs = Object.values(LOC).filter(function(l) { return l.ft.indexOf(ft) >= 0; });
     if (locs.length < 2) return;
@@ -913,7 +999,7 @@ function generateOrders() {
 }
 
 // ======================
-// MOVEMENT & ARRIVAL
+// MOVEMENT & ARRIVAL - FIXED TRUCK RELEASE
 // ======================
 function handleArrival(t) {
   if (t.state === 'to_pickup') {
@@ -944,7 +1030,7 @@ function handleArrival(t) {
     if (Math.random() < 0.03) t.damage = Math.min(100, t.damage + 15);
     
     if (o.delivered >= o.units) {
-      // Complete
+      // Order COMPLETE - release ALL assigned trucks to IDLE
       var elapsed = G.tick - o.acceptedTick;
       var late = elapsed > 5400;
       var reward = late ? Math.round(o.reward * CFG.latePct) : o.reward;
@@ -962,22 +1048,27 @@ function handleArrival(t) {
       
       toast('ORDER COMPLETE! +' + reward, late ? 'warning' : 'success');
       
-      // Release trucks - go IDLE, ready for next dispatch!
+      // CRITICAL FIX: Release ALL trucks assigned to this order to IDLE state
       for (var j = 0; j < o.assignedTrucks.length; j++) {
         var tr = null;
         for (var k = 0; k < G.fleet.length; k++) {
           if (G.fleet[k].id === o.assignedTrucks[j]) { tr = G.fleet[k]; break; }
         }
-        if (tr) { tr.state = 'idle'; tr.orderId = null; }
+        if (tr) {
+          tr.state = 'idle';
+          tr.orderId = null;
+          tr.cargo = 0;
+        }
       }
       
       G.orders = G.orders.filter(function(x) { return x.id !== o.id; });
       
     } else {
-      // Partial - truck goes IDLE for player to dispatch again
+      // Partial delivery - this truck goes IDLE for player to dispatch again
       toast('Delivered ' + o.delivered + '/' + o.units + '. Idle - dispatch again!', 'info');
       t.state = 'idle';
       t.orderId = null;
+      t.cargo = 0;
     }
     
   } else if (t.state === 'returning') {
@@ -1018,7 +1109,7 @@ function promoteDriver(d) {
 }
 
 // ======================
-// DRAWING
+// DRAWING - MAP VISIBILITY FIXED
 // ======================
 function draw() {
   var ctx = G.ctx;
@@ -1103,7 +1194,7 @@ function draw() {
 }
 
 // ======================
-// GAME LOOP
+// GAME LOOP - WEEKLY RESET LOGIC
 // ======================
 function update() {
   G.tick++;
@@ -1111,13 +1202,16 @@ function update() {
   // Day cycle
   if (G.tick % CFG.dayTicks === 0) {
     G.day++;
+    G.week = Math.ceil(G.day / CFG.WEEK_LENGTH);
     
-    // Check market refresh
+    // Check weekly market/driver refresh
     checkMarketRefresh();
+    checkDriverRefresh();
     
-    // Weekly check (every 7 days)
-    if ((G.day - CFG.MARKET_REFRESH_DAY) % 7 === 0 && G.day !== CFG.MARKET_REFRESH_DAY) {
+    // Weekly reset on Sunday night (day 7, 14, 21...)
+    if (G.day % CFG.WEEK_LENGTH === 0) {
       checkWeeklyVolumes();
+      toast('Week ended! Contract fines assessed.', 'warning');
     }
     
     // Daily costs
@@ -1140,7 +1234,7 @@ function update() {
     
     var dx = t.tx - t.x;
     var dy = t.ty - t.y;
-    var dist = Math.sqrt(dx * dx + dy * dy);
+        var dist = Math.sqrt(dx * dx + dy * dy);
     
     if (dist < 0.01) {
       handleArrival(t);
@@ -1170,7 +1264,7 @@ function update() {
         for (var k = 0; k < G.fleet.length; k++) {
           if (G.fleet[k].id === o.assignedTrucks[j]) { tr = G.fleet[k]; break; }
         }
-        if (tr) { tr.state = 'idle'; tr.orderId = null; }
+        if (tr) { tr.state = 'idle'; tr.orderId = null; tr.cargo = 0; }
       }
       G.orders = G.orders.filter(function(x) { return x.id !== o.id; });
     }
@@ -1188,10 +1282,10 @@ function checkWeeklyVolumes() {
       var shortage = c.weeklyGoal - c.weeklyVol;
       var fine = Math.round(shortage * c.companyData.finePct * 100);
       totalFine += fine;
-      c.active = false;
-      toast(c.company + ' MISSED goal! -$' + fine, 'error');
+      // Contract stays active but tracks fresh weekly progress
+      c.weeklyVol = 0;
     }
-    c.weeklyVol = 0;
+    c.weeklyVol = 0; // Reset for next week
   });
   G.cash -= totalFine;
 }
@@ -1223,6 +1317,7 @@ function renderTopBar() {
   document.getElementById('cash').textContent = '$' + G.cash.toLocaleString();
   document.getElementById('rev').textContent = '$' + G.revenue.toLocaleString();
   document.getElementById('day').textContent = G.day;
+  document.getElementById('week').textContent = G.week;
   document.getElementById('ctr').textContent = G.contracts.filter(function(c) { return c && c.active; }).length + '/5';
   document.getElementById('hub').textContent = G.hubs.length;
 }
@@ -1250,8 +1345,7 @@ function renderOrders() {
     html += active.map(function(o) {
       var pct = o.units > 0 ? Math.round(o.delivered / o.units * 100) : 0;
       return '<div class="card"><div class="card-row"><span class="card-title">' + FT[o.ft].icon + ' <b>' + o.from.name + '</b> → <b>' + o.to.name + '</b></span><span class="card-reward">$' + o.reward + '</span></div>' +
-        
-'<div class="card-sub">' + o.delivered + '/' + o.units + ' ' + FT[o.ft].unit + ' (' + pct + '%)</div>' +
+        '<div class="card-sub">' + o.delivered + '/' + o.units + ' ' + FT[o.ft].unit + ' (' + pct + '%)</div>' +
         '<div class="progress"><div class="progress-fill" style="width:' + pct + '%;background:#4ecca3"></div></div></div>';
     }).join('');
   }
@@ -1267,7 +1361,7 @@ function renderContracts() {
   var html = '';
   
   if (avail.length > 0) {
-    html += '<div class="section-lbl">Available Contracts</div>';
+    html += '<div class="section-lbl">Available Contracts (Randomizes Weekly)</div>';
     avail.forEach(function(comp) {
       var ri = COMPANIES.indexOf(comp);
       var can = G.cash >= comp.signFee;
@@ -1278,7 +1372,7 @@ function renderContracts() {
   }
   
   if (active.length > 0) {
-    html += '<div class="section-lbl">Active Contracts (Weekly Penalty if Goal Missed)</div>';
+    html += '<div class="section-lbl">Active Contracts (Weekly Assessment)</div>';
     active.forEach(function(con) {
       var pct = con.weeklyGoal > 0 ? Math.min(100, Math.round(con.weeklyVol / con.weeklyGoal * 100)) : 0;
       html += '<div class="card' + (pct < 50 ? ' danger' : '') + '"><div class="card-row"><span class="card-title">🏭 ' + con.company + '</span>' +
@@ -1329,12 +1423,13 @@ function renderDrivers() {
 function renderShop() {
   var c = document.getElementById('shop-list');
   var html = '';
+  var currentWeek = G.week;
   
-  // Daily Market Section
-  html += '<div class="section-lbl">🏪 Today\'s Truck Market (Resets Day ' + G.marketRefreshedAtDay + ')</div>';
-  html += '<div class="card-sub" style="margin-bottom:10px">Each day new trucks appear with random stats! Buy before they sell out!</div>';
+  // Weekly Market Section
+  html += '<div class="section-lbl">🏪 This Week\'s Truck Market (Week ' + currentWeek + ')</div>';
+  html += '<div class="card-sub" style="margin-bottom:10px">New trucks appear every Monday! Buy before the week ends.</div>';
   
-  var marketItems = G.dailyMarket.filter(function(item) { return !item.sold; });
+  var marketItems = G.weeklyMarket.filter(function(item) { return !item.sold; });
   if (marketItems.length > 0) {
     html += marketItems.map(function(item, index) {
       var base = TT_BASE[item.tierKey];
@@ -1352,22 +1447,30 @@ function renderShop() {
         '<button class="btn" ' + (can ? '' : 'disabled') + ' onclick="buyTruckFromMarket(' + index + ')">' + (can ? 'BUY NOW' : 'Need $' + item.cost.toLocaleString()) + '</button></div>';
     }).join('');
   } else {
-    html += '<div class="empty-msg"><span>⚠️</span>All trucks sold today! Come back tomorrow.</div>';
+    html += '<div class="empty-msg"><span>⚠️</span>All trucks sold this week! Come back Monday.</div>';
   }
   
-  // Drivers Section
-  html += '<div class="section-lbl">👨‍✈️ Hire Drivers (Permanent)</div>';
-  html += '<div class="card-sub" style="margin-bottom:10px">Drivers are permanent employees paid daily wages. Higher tiers = faster travel & bonuses.</div>';
-  html += Object.keys(DT).map(function(key, i) {
-    var cfg = DT[key];
-    var cost = CFG.hireCost * (i + 1);
-    var can = G.cash >= cost;
-    return '<div class="card"><div class="card-row"><span class="card-title">👨‍✈️ ' + cfg.name + '</span><span class="card-reward">$' + cost.toLocaleString() + '</span></div>' +
-      '<div class="card-sub">Wage: $' + cfg.wage + '/day | Speed: ' + cfg.speedMod + 'x | Contract Bonus: +' + cfg.bonus + ' units/week</div>' +
-      '<button class="btn btn-secondary" ' + (can ? '' : 'disabled') + ' onclick="hireDriver(\'' + key + '\')">' + (can ? 'Hire' : (G.cash < cost ? 'Need $' + cost.toLocaleString() : 'Full')) + '</button></div>';
-  }).join('');
+  // Weekly Drivers Section
+  html += '<div class="section-lbl">👨‍✈️ This Week\'s Available Drivers (Week ' + currentWeek + ')</div>';
+  html += '<div class="card-sub" style="margin-bottom:10px">New drivers appear every Monday! Higher tiers cost more to hire and pay higher daily wages.</div>';
   
-  // Hubs Section
+  var driverItems = G.weeklyDrivers.filter(function(item) { return !item.sold; });
+  if (driverItems.length > 0) {
+    html += driverItems.map(function(item, index) {
+      var cfg = DT[item.type];
+      var can = G.cash >= item.cost;
+      var ti = Object.keys(DT).indexOf(item.type) + 1;
+      
+      html += '<div class="driver-item">' +
+        '<div class="card-row"><span class="card-title">' + item.name + '</span><span class="card-reward">$' + item.cost.toLocaleString() + '</span></div>' +
+        '<div class="card-sub">Tier <span class="badge badge-' + ti + '">T' + ti + '</span> | Wage: $' + cfg.wage + '/day | Speed: ' + cfg.speedMod + 'x | Bonus: +' + cfg.bonus + '</div>' +
+        '<button class="btn btn-secondary" ' + (can ? '' : 'disabled') + ' onclick="buyDriverFromMarket(' + index + ')">' + (can ? 'HIRE' : 'Need $' + item.cost.toLocaleString()) + '</button></div>';
+    }).join('');
+  } else {
+    html += '<div class="empty-msg"><span>👨‍✈️</span>No drivers available this week!</div>';
+  }
+  
+  // Permanent Hubs Section
   html += '<div class="section-lbl">🏠 Purchase Hubs (Permanent)</div>';
   html += '<div class="card-sub" style="margin-bottom:10px">Hubs provide refueling, repairs, and driver rest. Lower maintenance for smaller hubs.</div>';
   html += Object.keys(HUB).map(function(key, i) {
