@@ -1,5 +1,5 @@
 var FT = { bulk: { name: 'Bulk', icon: '⛏️', unit: 't' }, container: { name: 'Container', icon: '📦', unit: 'TEU' }, cool: { name: 'Refrigerated', icon: '❄️', unit: 'pal' }, special: { name: 'Special', icon: '⚠️', unit: 'unt' } };
-
+var isPaused = false;
 var TT_BASE = { t1: { name: 'Basic Van', costMin: 1800, costMax: 2200, capMin: 2, capMax: 5, speedMin: 2, speedMax: 4, color: '#888', maint: 30, compat: ['bulk', 'container'] }, t2: { name: 'Standard Truck', costMin: 3600, costMax: 4400, capMin: 5, capMax: 9, speedMin: 3, speedMax: 5, color: '#6d4aff', maint: 60, compat: ['bulk', 'container', 'cool'] }, t3: { name: 'Premium Trailer', costMin: 7200, costMax: 8800, capMin: 8, capMax: 14, speedMin: 4, speedMax: 6, color: '#3498db', maint: 120, compat: ['all'] }, t4: { name: 'Executive Semi', costMin: 14400, costMax: 17600, capMin: 14, capMax: 22, speedMin: 5, speedMax: 7, color: '#4ecca3', maint: 240, compat: ['all'] }, t5: { name: 'Elite Mega', costMin: 28800, costMax: 35200, capMin: 22, capMax: 35, speedMin: 6, speedMax: 8, color: '#ffd700', maint: 480, compat: ['all'] } };
 
 var DT = { d1: { name: 'Novice', wage: 200, speedMod: 0.8, bonus: 0 }, d2: { name: 'Qualified', wage: 400, speedMod: 1.0, bonus: 1 }, d3: { name: 'Expert', wage: 800, speedMod: 1.1, bonus: 3 }, d4: { name: 'Master', wage: 1600, speedMod: 1.2, bonus: 5 }, d5: { name: 'Legend', wage: 3200, speedMod: 1.3, bonus: 8 } };
@@ -12,7 +12,7 @@ var LOC = { downtown: { name: 'Downtown', x: 0.25, y: 0.38, ft: ['container'] },
 
 var NAMES = ['Alex', 'Jordan', 'Taylor', 'Casey', 'Sam', 'Riley', 'Morgan', 'Quinn'];
 
-var CFG = { maxFleet: 20, maxContracts: 5, orderInterval: 8000, dayTicks: 3600, hireCost: 300, latePct: 0.5, finePct: 0.25, fuelPerTrip: 0.15, repairAmt: 30, WEEKLY_MARKET_SIZE: 8, WEEKLY_DRIVER_SIZE: 4, WEEK_LENGTH: 7, AVAILABLE_CONTRACTS_PER_WEEK: 5, ORDER_TIMEOUT: 14400 };
+var CFG = { maxFleet: 20, maxContracts: 5, orderInterval: 8000, dayTicks: 3600, hireCost: 300, latePct: 0.5, finePct: 0.25, fuelPerTrip: 0.15, repairAmt: 30, WEEKLY_MARKET_SIZE: 8, WEEKLY_DRIVER_SIZE: 4, WEEK_LENGTH: 7, AVAILABLE_CONTRACTS_PER_WEEK: 5, ORDER_TIMEOUT: 14400, MIN_ORDER_UNITS: 20 };
 
 var G = { cash: 5000, revenue: 0, day: 1, week: 1, tick: 0, uiTick: 0, fleet: [], drivers: [], hubs: [], contracts: [], orders: [], availableContracts: [], canvas: null, ctx: null, W: 0, H: 0, truckId: 0, orderId: 0, contractId: 0, hubId: 0, dispatchTruckId: 0, driverTruckId: 0, marketRefreshedAtWeek: 1, driverRefreshedAtWeek: 1, contractsRefreshedAtWeek: 1, weeklyMarket: [], weeklyDrivers: [] };
 
@@ -60,7 +60,7 @@ window.openDriver = function(truckId) { G.driverTruckId = truckId; var t = null;
 
 window.assignDriver = function(did) { var t = null; for (var i = 0; i < G.fleet.length; i++) { if (G.fleet[i].id === G.driverTruckId) { t = G.fleet[i]; break; } } if (!t) return; if (t.assignedDriver !== null && t.assignedDriver !== undefined) { var old = G.drivers[t.assignedDriver]; if (old) old.truckId = null; } var d = G.drivers[did]; if (d.truckId !== null && d.truckId !== t.id) { var oldTr = null; for (var j = 0; j < G.fleet.length; j++) { if (G.fleet[j].id === d.truckId) { oldTr = G.fleet[j]; break; } } if (oldTr) oldTr.assignedDriver = null; } t.assignedDriver = did; d.truckId = t.id; toast(d.name + ' assigned ✓', 'success'); closeModal('driver-modal'); renderFleet(); renderDrivers(); };
 
-function generateOrders() { var acts = G.contracts.filter(function(c) { return c.active; }); if (acts.length === 0) return; acts.forEach(function(c) { if (Math.random() > 0.4) return; var ft = c.companyData.ft[Math.floor(Math.random() * c.companyData.ft.length)]; var locs = Object.values(LOC).filter(function(l) { return l.ft.indexOf(ft) >= 0; }); if (locs.length < 2) return; var from = locs[Math.floor(Math.random() * locs.length)]; var to = locs[Math.floor(Math.random() * locs.length)]; while (to === from) to = locs[Math.floor(Math.random() * locs.length)]; var units = Math.floor(5 + Math.random() * 20); var dist = Math.abs(from.x - to.x) + Math.abs(from.y - to.y); var reward = Math.round(units * 15 * (1 + dist) * (0.8 + Math.random() * 0.4)); G.orders.push({ id: uid('order'), contractId: c.id, ft: ft, units: units, delivered: 0, from: from, to: to, reward: reward, status: 'pending', acceptedTick: 0, assignedTrucks: [] }); }); renderOrders(); }
+function generateOrders() { var acts = G.contracts.filter(function(c) { return c.active; }); if (acts.length === 0) return; acts.forEach(function(c) { if (Math.random() > 0.4) return; var ft = c.companyData.ft[Math.floor(Math.random() * c.companyData.ft.length)]; var locs = Object.values(LOC).filter(function(l) { return l.ft.indexOf(ft) >= 0; }); if (locs.length < 2) return; var from = locs[Math.floor(Math.random() * locs.length)]; var to = locs[Math.floor(Math.random() * locs.length)]; while (to === from) to = locs[Math.floor(Math.random() * locs.length)];  var units = Math.floor(CFG.MIN_ORDER_UNITS + Math.random() * 30); var dist = Math.abs(from.x - to.x) + Math.abs(from.y - to.y); var reward = Math.round(units * 15 * (1 + dist) * (0.8 + Math.random() * 0.4)); G.orders.push({ id: uid('order'), contractId: c.id, ft: ft, units: units, delivered: 0, from: from, to: to, reward: reward, status: 'pending', acceptedTick: 0, assignedTrucks: [] }); }); renderOrders(); }
 
 function handleArrival(t) {
   if (t.state === 'to_pickup') {
@@ -116,7 +116,10 @@ function draw() {
 }
 
 function update() {
-  G.tick++;
+  if (!isPaused) {
+    G.tick++;
+  }
+  if (isPaused) return; // Skip all updates when paused
   if (G.tick % CFG.dayTicks === 0) {
     G.day++; G.week = Math.ceil(G.day / CFG.WEEK_LENGTH);
     checkMarketRefresh();
@@ -149,7 +152,7 @@ function update() {
   if (G.uiTick % 20 === 0) renderAll();
 }
 
-function checkWeeklyVolumes() { var totalFine = 0; G.contracts.forEach(function(c) { if (!c.active) return; if (c.weeklyVol < c.weeklyGoal) { var shortage = c.weeklyGoal - c.weeklyVol; var fine = Math.round(shortage * c.companyData.finePct * 100); totalFine += fine; toast(c.company + ' MISSED goal: -$' + fine, 'error'); } c.weeklyVol = 0; }); G.cash -= totalFine; }
+function checkWeeklyVolumes() { var totalFine = 0; var contractsToCancel = []; G.contracts.forEach(function(c) { if (!c.active) return; if (c.weeklyVol < c.weeklyGoal) { var shortage = c.weeklyGoal - c.weeklyVol; var fine = Math.round(shortage * c.companyData.finePct * 100); totalFine += fine; toast(c.company + ' MISSED goal: -$' + fine, 'error'); contractsToCancel.push(c); } else { toast(c.company + ' Goal achieved!', 'success'); } c.weeklyVol = 0; }); contractsToCancel.forEach(function(c) { c.active = false; G.contracts = G.contracts.filter(function(x) { return x !== c; }); }); G.cash -= totalFine; }
 
 function animate() { draw(); update(); requestAnimationFrame(animate); }
 
@@ -281,4 +284,14 @@ window.onload = function() {
   generateWeeklyMarket(1);
   generateWeeklyDrivers(1);
   startGame();
+    // Pause button handler
+  var pauseBtn = document.getElementById('pause-btn');
+  if (pauseBtn) {
+    pauseBtn.addEventListener('click', function() {
+      isPaused = !isPaused;
+      this.textContent = isPaused ? '▶ RESUME' : '⏸ PAUSE';
+      this.classList.toggle('playing', !isPaused);
+      toast(isPaused ? 'Game paused' : 'Game resumed', 'info');
+    });
+  }
 };
