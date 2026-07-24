@@ -25,13 +25,80 @@ var HUB = {
   h5: { name: 'Global Hub', cost: 80000, capacity: 25, maint: 1600 }
 };
 
-var COMPANIES = [
-  { name: 'TechCorp Industries', ft: ['container', 'cool'], signFee: 500, weeklyVol: 60, finePct: 0.30 },
-  { name: 'AutoParts United', ft: ['bulk', 'special'], signFee: 800, weeklyVol: 140, finePct: 0.35 },
-  { name: 'FreshFood Co', ft: ['cool'], signFee: 300, weeklyVol: 20, finePct: 0.25 },
-  { name: 'BuildMaterials Ltd', ft: ['bulk', 'special'], signFee: 1000, weeklyVol: 280, finePct: 0.40 },
-  { name: 'Retail Chain Global', ft: ['container', 'cool'], signFee: 600, weeklyVol: 90, finePct: 0.30 }
-];
+// REMOVED: Old static COMPANIES array
+// var COMPANIES = [...];
+
+// =================================== PROCEDURAL CONTRACT GENERATION ===================================
+
+// Adjective + Noun company name generator
+function generateCompanyName() {
+  var adjectives = ['Swift', 'Prime', 'Elite', 'Global', 'Apex', 'Unity', 'Iron', 'Nova', 'Alpha', 'Omega', 
+                    'Metro', 'Pacific', 'Atlantic', 'Continental', 'Diamond', 'Silver', 'Golden', 'Royal'];
+  var nouns = ['Logistics', 'Transport', 'Cargo', 'Freight', 'Supply', 'Distribution', 'Shipping', 
+               'Carriers', 'Express', 'Lines', 'Network', 'Solutions', 'Partners', 'Industries'];
+  
+  var adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  var noun = nouns[Math.floor(Math.random() * nouns.length)];
+  
+  return adj + ' ' + noun;
+}
+
+// Fully randomized contract generation (called weekly)
+function generateAvailableContracts(week) {
+  var numContracts = Math.floor(CFG.AVAILABLE_CONTRACTS_PER_WEEK * (0.8 + Math.random() * 0.4));
+  numContracts = Math.max(3, Math.min(numContracts, 7)); // 3-7 contracts each week
+  
+  G.availableContracts = [];
+  
+  for (var i = 0; i < numContracts; i++) {
+    // Random freight type
+    var freightTypes = ['bulk', 'container', 'cool', 'special'];
+    var ft = freightTypes[Math.floor(Math.random() * freightTypes.length)];
+    
+    // Allow 1-2 freight types sometimes
+    if (Math.random() > 0.7 && i < numContracts - 1) {
+      var ft2 = freightTypes[Math.floor(Math.random() * freightTypes.length)];
+      if (ft2 !== ft) {
+        ft = [ft, ft2];
+      }
+    }
+    
+    // Random fee (scaled to freight type)
+    var baseFees = { bulk: 400, container: 600, cool: 500, special: 800 };
+    var feeMultiplier = Array.isArray(ft) ? 1.5 : 1.0;
+    var feeMin = (Array.isArray(ft) ? baseFees[ft[0]] : baseFees[ft]) * 0.7 * feeMultiplier;
+    var feeMax = (Array.isArray(ft) ? baseFees[ft[0]] : baseFees[ft]) * 1.3 * feeMultiplier;
+    var signFee = Math.round(feeMin + Math.random() * (feeMax - feeMin));
+    
+    // Random weekly goal
+    var minGoal = Array.isArray(ft) ? 80 : 25;
+    var maxGoal = Array.isArray(ft) ? 350 : 150;
+    var weeklyVol = Math.floor(minGoal + Math.random() * (maxGoal - minGoal));
+    
+    // Random fine percentage (15-50%)
+    var finePct = 0.15 + Math.random() * 0.35;
+    
+    G.availableContracts.push({
+      id: 'gen_' + Date.now() + '_' + i,
+      name: generateCompanyName(),
+      ft: ft,
+      signFee: signFee,
+      weeklyVol: weeklyVol,
+      finePct: parseFloat(finePct.toFixed(2)),
+      tier: Math.floor(Math.random() * 5) + 1 // Random difficulty tier 1-5
+    });
+  }
+  
+  // Ensure we have enough variety
+  var uniqueFreight = new Set();
+  G.availableContracts.forEach(function(c) {
+    if (Array.isArray(c.ft)) {
+      c.ft.forEach(function(f) { uniqueFreight.add(f); });
+    } else {
+      uniqueFreight.add(c.ft);
+    }
+  });
+}
 
 var LOC = {
   downtown: { name: 'Downtown', x: 0.25, y: 0.38, ft: ['container'] },
@@ -406,31 +473,51 @@ function processQueue(t) {
   }
 }
 
-// ==================== ORDER GENERATION ====================
-
-function generateOrders() {
+// ==================== ORDER function generateOrders() {
   if (isPaused) return;
   var acts = G.contracts.filter(function(c) { return c.active; });
   if (acts.length === 0) return;
   
   acts.forEach(function(c) {
-    if (Math.random() > 0.4) return;
-    var ft = c.companyData.ft[Math.floor(Math.random() * c.companyData.ft.length)];
-    var locs = Object.values(LOC).filter(function(l) { return l.ft.indexOf(ft) >= 0; });
+    // Random chance to generate order (30-60% per contract)
+    if (Math.random() > 0.4 + Math.random() * 0.2) return;
+    
+    // Get freight type(s) - can be string or array
+    var ft = c.ft;
+    if (Array.isArray(ft)) {
+      ft = ft[Math.floor(Math.random() * ft.length)];
+    }
+    
+    var locs = Object.values(LOC).filter(function(l) { 
+      return l.ft.indexOf(ft) >= 0 || l.ft.indexOf('all') >= 0; 
+    });
     if (locs.length < 2) return;
     
     var from = locs[Math.floor(Math.random() * locs.length)];
     var to = locs[Math.floor(Math.random() * locs.length)];
-    while (to === from) to = locs[Math.floor(Math.random() * locs.length)];
+    while (to === from) {
+      to = locs[Math.floor(Math.random() * locs.length)];
+    }
     
-    var units = Math.floor(CFG.MIN_ORDER_UNITS + Math.random() * 30);
+    // Random units (15-50 range)
+    var units = Math.floor(15 + Math.random() * 35);
+    
+    // Distance-based reward calculation
     var dist = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
-    var reward = Math.round(units * 15 * (1 + dist) * (0.8 + Math.random() * 0.4));
+    var baseReward = units * 12 + (dist * 100);
+    var rewardVariability = 0.7 + Math.random() * 0.6; // 0.7-1.3x variance
+    var reward = Math.round(baseReward * rewardVariability);
     
     G.orders.push({
-      id: uid('order'), contractId: c.id, ft: ft,
-      units: units, delivered: 0, from: from, to: to,
-      reward: reward, status: 'pending',
+      id: uid('order'), 
+      contractId: c.id, 
+      ft: ft,
+      units: units, 
+      delivered: 0, 
+      from: from, 
+      to: to,
+      reward: reward, 
+      status: 'pending',
       createdTick: G.tick,
       acceptedTick: 0,
       assignedTrucks: []
@@ -439,7 +526,6 @@ function generateOrders() {
   
   renderOrders();
 }
-
 // ==================== ARRIVAL HANDLING ====================
 
 function handleArrival(t) {
