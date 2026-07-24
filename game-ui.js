@@ -1,4 +1,5 @@
-// ==================== CONTRACT & ORDER window.signContract = function(companyIdx) {
+// ==================== CONTRACT & ORDER 
+window.signContract = function(companyIdx) {
   var comp = G.availableContracts[companyIdx];
   if (!comp) { toast('Not available!', 'error'); return; }
   if (G.cash < comp.signFee) { toast('Need $' + comp.signFee, 'error'); return; }
