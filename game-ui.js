@@ -1,17 +1,24 @@
-// ==================== CONTRACT & ORDER ACTIONS ====================
-
-window.signContract = function(companyIdx) {
+// ==================== CONTRACT & ORDER window.signContract = function(companyIdx) {
   var comp = G.availableContracts[companyIdx];
   if (!comp) { toast('Not available!', 'error'); return; }
   if (G.cash < comp.signFee) { toast('Need $' + comp.signFee, 'error'); return; }
   var already = G.contracts.some(function(c) { return c.company === comp.name; });
   if (already) { toast('Already signed!', 'error'); return; }
   if (G.contracts.length >= CFG.maxContracts) { toast('Max contracts!', 'error'); return; }
+  
   G.cash -= comp.signFee;
+  
   G.contracts.push({
-    id: uid('contract'), company: comp.name, companyData: comp,
-    weeklyVol: 0, weeklyGoal: comp.weeklyVol, active: true, signedWeek: G.week
+    id: uid('contract'), 
+    company: comp.name, 
+    companyData: comp,
+    weeklyVol: 0, 
+    weeklyGoal: comp.weeklyVol, 
+    active: true, 
+    signedWeek: G.week,
+    ft: comp.ft // Store freight type for order generation
   });
+  
   toast('Signed ' + comp.name + '!', 'success');
   renderContracts(); renderTopBar();
 };
@@ -262,14 +269,19 @@ function renderContracts() {
   var html = [];
 
   if (avail.length > 0) {
-    html.push('<div class="section-lbl">Available Contracts (Randomized Each Week)</div>');
+    html.push('<div class="section-lbl">Available Contracts (Completely Randomized Each Week!)</div>');
     avail.forEach(function(comp, idx) {
       var can = G.cash >= comp.signFee;
+      var ftDisplay = Array.isArray(comp.ft) 
+        ? comp.ft.map(function(f) { return FT[f].icon; }).join('/')
+        : FT[comp.ft] ? FT[comp.ft].icon : comp.ft;
+      
       html.push(
         '<div class="card"><div class="card-row"><span class="card-title">🏢 ' + comp.name + '</span>' +
         '<span class="card-reward">$' + comp.signFee.toLocaleString() + '</span></div>' +
-        '<div class="card-sub">Freight: ' + comp.ft.map(function(f) { return FT[f].icon; }).join(' ') +
+        '<div class="card-sub">Freight: ' + ftDisplay +
         ' | Weekly Goal: ' + comp.weeklyVol + ' | Fine: ' + Math.round(comp.finePct * 100) + '% of shortage</div>' +
+        '<div class="card-sub" style="color:#888;font-size:9px">Tier T' + comp.tier + ' Difficulty</div>' +
         '<button class="btn" ' + (can ? '' : 'disabled') + ' onclick="signContract(' + idx + ');">' +
         (can ? 'Sign Contract' : 'Need $' + comp.signFee.toLocaleString()) + '</button></div>'
       );
@@ -283,11 +295,16 @@ function renderContracts() {
     active.forEach(function(con) {
       var pct = con.weeklyGoal > 0 ? Math.min(100, Math.round(con.weeklyVol / con.weeklyGoal * 100)) : 0;
       var color = pct < 50 ? '#ff6b6b' : (pct < 80 ? '#f39c12' : '#4ecca3');
+      var ftDisplay = Array.isArray(con.ft) 
+        ? con.ft.map(function(f) { return FT[f].icon; }).join('/')
+        : (FT[con.ft] ? FT[con.ft].icon : con.ft);
+      
       html.push(
         '<div class="card' + (pct < 50 ? ' danger' : '') + '">' +
         '<div class="card-row"><span class="card-title">🏭 ' + con.company + '</span>' +
         '<span class="badge" style="background:' + color + ';color:#1a1a2e">' + pct + '%</span></div>' +
         '<div class="card-sub">This Week: ' + con.weeklyVol + '/' + con.weeklyGoal + '</div>' +
+        '<div class="card-sub" style="font-size:9px;color:#888">Freight: ' + ftDisplay + '</div>' +
         '<div class="progress"><div class="progress-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
         '<button class="btn btn-danger" style="margin-top:6px" onclick="cancelContract(' + con.id + ');">Cancel</button></div>'
       );
