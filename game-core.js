@@ -473,7 +473,8 @@ function processQueue(t) {
   }
 }
 
-// ==================== ORDER function generateOrders() {
+// ==================== ORDER 
+function generateOrders() {
   if (isPaused) return;
   var acts = G.contracts.filter(function(c) { return c.active; });
   if (acts.length === 0) return;
