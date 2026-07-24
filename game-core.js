@@ -10,11 +10,11 @@ var TT_BASE = {
 };
 
 var DT = {
-  d1: { name: 'Novice', wage: 200, speedMod: 0.8, bonus: 0 },
-  d2: { name: 'Qualified', wage: 400, speedMod: 1.0, bonus: 1 },
-  d3: { name: 'Expert', wage: 800, speedMod: 1.1, bonus: 3 },
-  d4: { name: 'Master', wage: 1600, speedMod: 1.2, bonus: 5 },
-  d5: { name: 'Legend', wage: 3200, speedMod: 1.3, bonus: 8 }
+  d1: { name: 'Novice', wage: 150, speedMod: 0.8, bonus: 0 },
+  d2: { name: 'Qualified', wage: 300, speedMod: 1.0, bonus: 1 },
+  d3: { name: 'Expert', wage: 600, speedMod: 1.2, bonus: 3 },
+  d4: { name: 'Master', wage: 1200, speedMod: 1.4, bonus: 5 },
+  d5: { name: 'Legend', wage:2400, speedMod: 1.6, bonus: 8 }
 };
 
 var HUB = {
@@ -284,9 +284,37 @@ window.openDispatch = function(truckId) {
   var list = document.getElementById('dispatch-items');
   var html = [];
 
-  if (t.state === 'idle' && queueSize < CFG.MAX_DISPATCH_QUEUE) {
+  // Show current work status if busy
+  if (t.state !== 'idle' && t.state !== 'returning') {
+    var co = t.dispatchQueue && t.dispatchQueue.length > 0 ? G.orders.find(function(x) { return x.id === t.dispatchQueue[0]; }) : null;
+    if (co) {
+      html.push('<div class="section-lbl">Working: ' + co.from.name + ' → ' + co.to.name + '</div>');
+      html.push('<div class="dispatch-item" style="opacity:0.6">▶ Current Delivery in Progress...</div>');
+    }
+  } else if (t.state === 'returning') {
+    html.push('<div class="section-lbl">🔄 Returning to Hub for Refuel/Repair...</div>');
+  }
+
+  // Show queued items
+  if (queueSize > 0) {
+    html.push('<div class="section-lbl" style="color:#f39c12">Queued Dispatches (' + queueSize + '/' + CFG.MAX_DISPATCH_QUEUE + ')</div>');
+    t.dispatchQueue.forEach(function(oid, qi) {
+      var o = G.orders.find(function(x) { return x.id === oid; });
+      if (o) {
+        html.push('<div class="dispatch-item" style="' + (qi === 0 ? '' : 'opacity:0.7;border-color:#f39c12') + '">' +
+          (qi === 0 ? '▶ ' : '📌 QUEUED: ') + FT[o.ft].icon + ' ' + o.from.name + ' → ' + o.to.name +
+          ' | ' + o.delivered + '/' + o.units + '</div>');
+      }
+    });
+  }
+
+  // If queue has room and truck has driver, show orders to add
+  if (queueSize < CFG.MAX_DISPATCH_QUEUE) {
     if (drv) {
-      var acts = G.orders.filter(function(o) { return o.status === 'accepted' || o.status === 'in_transit'; });
+      var acts = G.orders.filter(function(o) {
+        return (o.status === 'accepted' || o.status === 'in_transit') &&
+               (!t.dispatchQueue || t.dispatchQueue.indexOf(o.id) < 0);
+      });
       if (acts.length > 0) {
         html.push('<div class="section-lbl">⚡ Orders - Tap to Queue</div>');
         acts.forEach(function(o) {
@@ -306,40 +334,23 @@ window.openDispatch = function(truckId) {
             '</div>'
           );
         });
-      } else {
+      } else if (queueSize === 0) {
         html.push('<div class="empty-msg"><span>📋</span>No orders waiting.</div>');
-      }
-
-      if (t.dispatchQueue && t.dispatchQueue.length > 0) {
-        html.push('<div class="section-lbl" style="color:#f39c12">Queued Dispatches (' + t.dispatchQueue.length + '/' + CFG.MAX_DISPATCH_QUEUE + ')</div>');
-        t.dispatchQueue.forEach(function(oid) {
-          var o = G.orders.find(function(x) { return x.id === oid; });
-          if (o) {
-            html.push('<div class="dispatch-item" style="opacity:0.7;border-color:#f39c12">📌 QUEUED: ' + FT[o.ft].icon + ' ' + o.from.name + ' → ' + o.to.name + '</div>');
-          }
-        });
       }
     } else {
       html.push('<div class="empty-msg"><span style="color:#ff6b6b">⚠ Assign driver first!</span></div>');
     }
+  }
 
-    if (CFG.MAX_DISPATCH_QUEUE > queueSize) {
-      html.push('<div class="section-lbl">🏠 Return to Hub</div>');
-      G.hubs.forEach(function(h) {
-        html.push('<div class="dispatch-item" onclick="returnToHub(' + t.id + ',' + h.id + ');">🏠 ' + h.name + '</div>');
-      });
-    }
-  } else {
-    var o = t.dispatchQueue && t.dispatchQueue.length > 0 ? G.orders.find(function(x) { return x.id === t.dispatchQueue[0]; }) : null;
-    if (o) {
-      html.push('<div class="section-lbl">Working: ' + o.from.name + ' → ' + o.to.name + '</div>');
-      html.push('<div class="dispatch-item" style="opacity:0.6">Current Delivery in Progress...</div>');
-    }
-    if (t.dispatchQueue && t.dispatchQueue.length > 1) {
-      html.push('<div class="section-lbl">Next in Queue</div>');
-      html.push('<div class="dispatch-item" style="border-color:#6d4aff">📌 Next: ' + (t.dispatchQueue[1]) + ' order(s) waiting</div>');
-    }
-    html.push('<div class="section-lbl">Abort & Return</div>');
+  // Always show hub return / refuel option
+  if (t.state === 'idle') {
+    html.push('<div class="section-lbl">🏠 Return to Hub (Refuel & Repair)</div>');
+    G.hubs.forEach(function(h) {
+      html.push('<div class="dispatch-item" onclick="returnToHub(' + t.id + ',' + h.id + ');">🏠 ' + h.name + '</div>');
+    });
+  } else if (t.state !== 'returning') {
+    // Truck is busy but can abort & return for refuel
+    html.push('<div class="section-lbl">⚠ Abort & Return to Hub (Refuel/Repair)</div>');
     G.hubs.forEach(function(h) {
       html.push('<div class="dispatch-item" onclick="abortAndReturn(' + t.id + ',' + h.id + ');">🏠 Abort to ' + h.name + '</div>');
     });
@@ -376,6 +387,28 @@ window.abortAndReturn = function(tid, hid) {
   toast('Aborted & Returning to ' + h.name, 'warning');
   closeModal('dispatch-modal');
   renderFleet(); renderOrders();
+};
+
+window.sellTruck = function(truckId) {
+  var t = G.fleet.find(function(x) { return x.id === truckId; });
+  if (!t) { toast('Truck not found!', 'error'); return; }
+  if (t.state !== 'idle') { toast('Truck is busy! Return to hub first.', 'error'); return; }
+  
+  var refund = Math.round(t.costBought / 2);
+  
+  // Unassign driver if any
+  if (t.assignedDriver !== null && t.assignedDriver !== undefined) {
+    var d = G.drivers[t.assignedDriver];
+    if (d) { d.truckId = null; }
+  }
+  
+  // Remove from fleet
+  G.fleet = G.fleet.filter(function(x) { return x.id !== truckId; });
+  G.cash += refund;
+  
+  toast('Sold truck for $' + refund.toLocaleString() + ' (50% of purchase)!', 'success');
+  closeModal('dispatch-modal');
+  renderFleet(); renderDrivers(); renderTopBar();
 };
 
 window.dispatchToPickup = function(tid, oid) {
@@ -429,20 +462,42 @@ function processQueue(t) {
   var currentOid = t.dispatchQueue[0];
   var currentO = G.orders.find(function(x) { return x.id === currentOid; });
 
-  if (currentO) {
+  // If order no longer exists (completed/expired/aborted), remove from queue
+  if (!currentO) {
     t.dispatchQueue.shift();
-    processQueue(t);
+    t.orderId = null;
+    t.currentCargo = 0;
+
+    if (t.dispatchQueue.length > 0) {
+      t.state = 'idle';
+      startDelivery(t);
+    } else {
+      t.state = 'idle';
+    }
     return;
   }
 
-  t.dispatchQueue.shift();
-  t.orderId = null;
-  t.currentCargo = 0;
-  t.state = 'idle';
+  // Order still exists - check if it still needs delivery
+  var remaining = currentO.units - currentO.delivered;
+  if (remaining <= 0) {
+    // Order fully complete but not yet removed from G.orders
+    G.orders = G.orders.filter(function(x) { return x.id !== currentOid; });
+    t.dispatchQueue.shift();
+    t.orderId = null;
+    t.currentCargo = 0;
 
-  if (t.dispatchQueue.length > 0) {
-    startDelivery(t);
+    if (t.dispatchQueue.length > 0) {
+      t.state = 'idle';
+      startDelivery(t);
+    } else {
+      t.state = 'idle';
+    }
+    return;
   }
+
+  // Order still has remaining units - restart delivery cycle for same order
+  t.state = 'idle';
+  startDelivery(t);
 }
 
 // ==================== ORDER GENERATION ====================
