@@ -1,4 +1,5 @@
-// ==================== CONTRACT & ORDER 
+// ==================== CONTRACT & ORDER ACTIONS ====================
+
 window.signContract = function(companyIdx) {
   var comp = G.availableContracts[companyIdx];
   if (!comp) { toast('Not available!', 'error'); return; }
@@ -6,20 +7,17 @@ window.signContract = function(companyIdx) {
   var already = G.contracts.some(function(c) { return c.company === comp.name; });
   if (already) { toast('Already signed!', 'error'); return; }
   if (G.contracts.length >= CFG.maxContracts) { toast('Max contracts!', 'error'); return; }
-  
   G.cash -= comp.signFee;
-  
   G.contracts.push({
-    id: uid('contract'), 
-    company: comp.name, 
+    id: uid('contract'),
+    company: comp.name,
     companyData: comp,
-    weeklyVol: 0, 
-    weeklyGoal: comp.weeklyVol, 
-    active: true, 
+    weeklyVol: 0,
+    weeklyGoal: comp.weeklyVol,
+    active: true,
     signedWeek: G.week,
-    ft: comp.ft // Store freight type for order generation
+    ft: comp.ft
   });
-  
   toast('Signed ' + comp.name + '!', 'success');
   renderContracts(); renderTopBar();
 };
@@ -90,10 +88,9 @@ window.buyHub = function(tierKey) {
   renderAll();
 };
 
-// ==================== DRIVER ASSIGNMENT (FIXED - ADDED MISSING FUNCTION) ====================
+// ==================== DRIVER ASSIGNMENT ====================
 
 window.openDriver = function(truckId) {
-  // Open modal to assign driver to truck
   var t = G.fleet.find(function(x) { return x.id === truckId; });
   if (!t) return;
   
@@ -131,7 +128,6 @@ window.openDriver = function(truckId) {
     });
   }
   
-  // Also allow unassign
   if (drv) {
     html.push('<div class="section-lbl" style="margin-top:10px;color:#ff6b6b">Actions</div>');
     html.push('<div class="dispatch-item" onclick="unassignDriverFromTruck(' + truckId + ');">🔴 Unassign Current Driver (' + drv.name + ')</div>');
@@ -147,7 +143,6 @@ window.assignDriverToTruck = function(truckId, driverId) {
   
   if (!t || !d) { toast('Truck or driver not found!', 'error'); return; }
   
-  // If driver was on another truck, clear that assignment
   if (d.truckId !== null && d.truckId !== undefined) {
     var prevTruck = G.fleet.find(function(x) { return x.id === d.truckId; });
     if (prevTruck) {
@@ -155,7 +150,6 @@ window.assignDriverToTruck = function(truckId, driverId) {
     }
   }
   
-  // If old driver was on this truck, clear that
   if (t.assignedDriver !== null && t.assignedDriver !== undefined) {
     var oldDriver = G.drivers[t.assignedDriver];
     if (oldDriver) {
@@ -163,7 +157,6 @@ window.assignDriverToTruck = function(truckId, driverId) {
     }
   }
   
-  // Make new assignment
   t.assignedDriver = driverId;
   d.truckId = truckId;
   
