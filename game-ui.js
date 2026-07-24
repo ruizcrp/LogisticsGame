@@ -349,9 +349,12 @@ function renderFleet() {
       '<div class="card-sub">🔧 Maint: <b style="color:#f39c12">$' + cfg.maint + '/day</b> | Bought: $' + t.costBought.toLocaleString() + '</div>' +
       '<div class="card-sub">📦 Freight: ' + cfg.compat.map(function(f) { return FT[f] ? FT[f].icon : f; }).join(' ') + '</div>' +
       '<div class="card-sub">' + fuelWarn + dmgWarn + '🏠 Hub: ' + (hub ? hub.name : 'None') + '</div>' +
-      '<div class="card-row" style="margin-top:8px">' +
+           '<div class="card-row" style="margin-top:8px">' +
         '<span class="badge badge-' + (drv ? (Object.keys(DT).indexOf(drv.type)+1) : 0) + '">' + (drv ? drv.name : 'NO DRIVER') + '</span>' +
-        '<button class="btn btn-secondary" style="width:auto;padding:6px 12px;font-size:11px;margin-left:auto" onclick="event.stopPropagation();openDispatch(' + t.id + ');">⚡ Dispatch</button>' +
+        '<div style="margin-left:auto;display:flex;gap:4px">' +
+          '<button class="btn btn-secondary" style="width:auto;padding:6px 12px;font-size:11px" onclick="event.stopPropagation();openDispatch(' + t.id + ');">⚡ Dispatch</button>' +
+          '<button class="btn btn-danger" style="width:auto;padding:6px 12px;font-size:11px" onclick="event.stopPropagation();sellTruck(' + t.id + ');">💰 Sell</button>' +
+        '</div>' +
       '</div></div>'
     );
   });
