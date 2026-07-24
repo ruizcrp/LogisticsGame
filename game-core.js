@@ -25,81 +25,6 @@ var HUB = {
   h5: { name: 'Global Hub', cost: 80000, capacity: 25, maint: 1600 }
 };
 
-// REMOVED: Old static COMPANIES array
-// var COMPANIES = [...];
-
-// =================================== PROCEDURAL CONTRACT GENERATION ===================================
-
-// Adjective + Noun company name generator
-function generateCompanyName() {
-  var adjectives = ['Swift', 'Prime', 'Elite', 'Global', 'Apex', 'Unity', 'Iron', 'Nova', 'Alpha', 'Omega', 
-                    'Metro', 'Pacific', 'Atlantic', 'Continental', 'Diamond', 'Silver', 'Golden', 'Royal'];
-  var nouns = ['Logistics', 'Transport', 'Cargo', 'Freight', 'Supply', 'Distribution', 'Shipping', 
-               'Carriers', 'Express', 'Lines', 'Network', 'Solutions', 'Partners', 'Industries'];
-  
-  var adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-  var noun = nouns[Math.floor(Math.random() * nouns.length)];
-  
-  return adj + ' ' + noun;
-}
-
-// Fully randomized contract generation (called weekly)
-function generateAvailableContracts(week) {
-  var numContracts = Math.floor(CFG.AVAILABLE_CONTRACTS_PER_WEEK * (0.8 + Math.random() * 0.4));
-  numContracts = Math.max(3, Math.min(numContracts, 7)); // 3-7 contracts each week
-  
-  G.availableContracts = [];
-  
-  for (var i = 0; i < numContracts; i++) {
-    // Random freight type
-    var freightTypes = ['bulk', 'container', 'cool', 'special'];
-    var ft = freightTypes[Math.floor(Math.random() * freightTypes.length)];
-    
-    // Allow 1-2 freight types sometimes
-    if (Math.random() > 0.7 && i < numContracts - 1) {
-      var ft2 = freightTypes[Math.floor(Math.random() * freightTypes.length)];
-      if (ft2 !== ft) {
-        ft = [ft, ft2];
-      }
-    }
-    
-    // Random fee (scaled to freight type)
-    var baseFees = { bulk: 400, container: 600, cool: 500, special: 800 };
-    var feeMultiplier = Array.isArray(ft) ? 1.5 : 1.0;
-    var feeMin = (Array.isArray(ft) ? baseFees[ft[0]] : baseFees[ft]) * 0.7 * feeMultiplier;
-    var feeMax = (Array.isArray(ft) ? baseFees[ft[0]] : baseFees[ft]) * 1.3 * feeMultiplier;
-    var signFee = Math.round(feeMin + Math.random() * (feeMax - feeMin));
-    
-    // Random weekly goal
-    var minGoal = Array.isArray(ft) ? 80 : 25;
-    var maxGoal = Array.isArray(ft) ? 350 : 150;
-    var weeklyVol = Math.floor(minGoal + Math.random() * (maxGoal - minGoal));
-    
-    // Random fine percentage (15-50%)
-    var finePct = 0.15 + Math.random() * 0.35;
-    
-    G.availableContracts.push({
-      id: 'gen_' + Date.now() + '_' + i,
-      name: generateCompanyName(),
-      ft: ft,
-      signFee: signFee,
-      weeklyVol: weeklyVol,
-      finePct: parseFloat(finePct.toFixed(2)),
-      tier: Math.floor(Math.random() * 5) + 1 // Random difficulty tier 1-5
-    });
-  }
-  
-  // Ensure we have enough variety
-  var uniqueFreight = new Set();
-  G.availableContracts.forEach(function(c) {
-    if (Array.isArray(c.ft)) {
-      c.ft.forEach(function(f) { uniqueFreight.add(f); });
-    } else {
-      uniqueFreight.add(c.ft);
-    }
-  });
-}
-
 var LOC = {
   downtown: { name: 'Downtown', x: 0.25, y: 0.38, ft: ['container'] },
   industrial: { name: 'Industrial', x: 0.75, y: 0.68, ft: ['bulk', 'special', 'container'] },
@@ -174,7 +99,6 @@ function closeModal(id) {
   if (el) el.classList.remove('show');
 }
 
-// Fisher-Yates shuffle
 function shuffleArray(array) {
   var arr = array.slice();
   for (var i = arr.length - 1; i > 0; i--) {
@@ -209,16 +133,73 @@ function createDriver(tierKey) {
   };
 }
 
+// ==================== PROCEDURAL CONTRACT GENERATION ====================
+
+function generateCompanyName() {
+  var adjectives = ['Swift', 'Prime', 'Elite', 'Global', 'Apex', 'Unity', 'Iron', 'Nova', 'Alpha', 'Omega',
+                    'Metro', 'Pacific', 'Atlantic', 'Continental', 'Diamond', 'Silver', 'Golden', 'Royal',
+                    'Summit', 'Vanguard', 'Pinnacle', 'Horizon', 'Crown', 'Sterling', 'Vector'];
+  var nouns = ['Logistics', 'Transport', 'Cargo', 'Freight', 'Supply', 'Distribution', 'Shipping',
+               'Carriers', 'Express', 'Lines', 'Network', 'Solutions', 'Partners', 'Industries',
+               'Holdings', 'Group', 'Trade', 'Commerce'];
+  var adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  var noun = nouns[Math.floor(Math.random() * nouns.length)];
+  return adj + ' ' + noun;
+}
+
+function generateAvailableContracts(week) {
+  var numContracts = 3 + Math.floor(Math.random() * 5); // 3-7 contracts
+  var freightTypes = ['bulk', 'container', 'cool', 'special'];
+
+  G.availableContracts = [];
+
+  for (var i = 0; i < numContracts; i++) {
+    var ft = freightTypes[Math.floor(Math.random() * freightTypes.length)];
+
+    // 30% chance of multi-freight
+    if (Math.random() > 0.7) {
+      var ft2 = freightTypes[Math.floor(Math.random() * freightTypes.length)];
+      if (ft2 !== ft) {
+        ft = [ft, ft2];
+      }
+    }
+
+    var baseFees = { bulk: 400, container: 600, cool: 500, special: 800 };
+    var primaryFt = Array.isArray(ft) ? ft[0] : ft;
+    var baseFee = baseFees[primaryFt] || 500;
+    var feeMultiplier = Array.isArray(ft) ? 1.5 : 1.0;
+    var feeMin = baseFee * 0.7 * feeMultiplier;
+    var feeMax = baseFee * 1.3 * feeMultiplier;
+    var signFee = Math.round(feeMin + Math.random() * (feeMax - feeMin));
+
+    var minGoal = Array.isArray(ft) ? 80 : 25;
+    var maxGoal = Array.isArray(ft) ? 350 : 150;
+    var weeklyVol = Math.floor(minGoal + Math.random() * (maxGoal - minGoal));
+
+    var finePct = 0.15 + Math.random() * 0.35;
+    var difficultyTier = Math.floor(Math.random() * 5) + 1;
+
+    G.availableContracts.push({
+      name: generateCompanyName(),
+      ft: ft,
+      signFee: signFee,
+      weeklyVol: weeklyVol,
+      finePct: parseFloat(finePct.toFixed(2)),
+      tier: difficultyTier
+    });
+  }
+}
+
 // ==================== WEEKLY GENERATORS ====================
 
 function generateWeeklyMarket(week) {
   G.weeklyMarket = [];
   var tiers = Object.keys(TT_BASE);
   tiers = shuffleArray(tiers);
-  
+
   var pickCount = 3 + Math.floor(Math.random() * 3);
   var picked = tiers.slice(0, Math.min(pickCount, tiers.length));
-  
+
   picked.forEach(function(tk) {
     var base = TT_BASE[tk];
     var n = 1 + Math.floor(Math.random() * 2);
@@ -232,12 +213,12 @@ function generateWeeklyMarket(week) {
       G.weeklyMarket.push({ tierKey: tk, cost: cost, capacity: cap, speed: spd, dealType: dt, sold: false });
     }
   });
-  
+
   while (G.weeklyMarket.length < 5) {
     var rk = Object.keys(TT_BASE)[Math.floor(Math.random() * 5)];
     var b = TT_BASE[rk];
     G.weeklyMarket.push({
-      tierKey: rk, cost: Math.round(b.costMin + Math.random() * (b.capMax - b.costMin)),
+      tierKey: rk, cost: Math.round(b.costMin + Math.random() * (b.costMax - b.costMin)),
       capacity: Math.floor(b.capMin + Math.random() * (b.capMax - b.capMin)),
       speed: b.speedMin + Math.random() * (b.speedMax - b.speedMin),
       dealType: '', sold: false
@@ -249,10 +230,10 @@ function generateWeeklyDrivers(week) {
   G.weeklyDrivers = [];
   var tiers = Object.keys(DT);
   tiers = shuffleArray(tiers);
-  
+
   var pickCount = 2 + Math.floor(Math.random() * 3);
   var picked = tiers.slice(0, Math.min(pickCount, tiers.length));
-  
+
   picked.forEach(function(tk) {
     if (G.weeklyDrivers.length >= CFG.WEEKLY_DRIVER_SIZE) return;
     var idx = Object.keys(DT).indexOf(tk);
@@ -263,15 +244,6 @@ function generateWeeklyDrivers(week) {
       G.weeklyDrivers.push({ type: tk, cost: cost, name: nm, sold: false });
     }
   });
-}
-
-// FIX: Now only excludes ACTIVELY signed contracts, not completed ones
-function generateAvailableContracts(week) {
-  var shuffled = shuffleArray(COMPANIES);
-  // Only exclude contracts that are still ACTIVE
-  var alreadySigned = G.contracts.filter(function(c) { return c.active === true; }).map(function(c) { return c.company; });
-  var available = shuffled.filter(function(comp) { return alreadySigned.indexOf(comp.name) < 0; });
-  G.availableContracts = available.slice(0, CFG.AVAILABLE_CONTRACTS_PER_WEEK);
 }
 
 function checkMarketRefresh() {
@@ -302,7 +274,7 @@ window.openDispatch = function(truckId) {
   var cfg = TT_BASE[t.type];
   var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
   var queueSize = t.dispatchQueue ? t.dispatchQueue.length : 0;
-  
+
   document.getElementById('dispatch-info').innerHTML =
     '<b>' + cfg.name + '</b> | Cap: ' + t.capacity + ' | Speed: ' + t.speed.toFixed(1) +
     '<br>Fuel: ' + Math.round(t.fuel * 100) + '% | Damage: ' + Math.round(t.damage) + '%' +
@@ -337,7 +309,7 @@ window.openDispatch = function(truckId) {
       } else {
         html.push('<div class="empty-msg"><span>📋</span>No orders waiting.</div>');
       }
-      
+
       if (t.dispatchQueue && t.dispatchQueue.length > 0) {
         html.push('<div class="section-lbl" style="color:#f39c12">Queued Dispatches (' + t.dispatchQueue.length + '/' + CFG.MAX_DISPATCH_QUEUE + ')</div>');
         t.dispatchQueue.forEach(function(oid) {
@@ -350,7 +322,7 @@ window.openDispatch = function(truckId) {
     } else {
       html.push('<div class="empty-msg"><span style="color:#ff6b6b">⚠ Assign driver first!</span></div>');
     }
-    
+
     if (CFG.MAX_DISPATCH_QUEUE > queueSize) {
       html.push('<div class="section-lbl">🏠 Return to Hub</div>');
       G.hubs.forEach(function(h) {
@@ -411,18 +383,18 @@ window.dispatchToPickup = function(tid, oid) {
   for (var i = 0; i < G.fleet.length; i++) { if (G.fleet[i].id === tid) { t = G.fleet[i]; break; } }
   var o = null;
   for (var j = 0; j < G.orders.length; j++) { if (G.orders[j].id === oid) { o = G.orders[j]; break; } }
-  
+
   if (!t || !o) { toast('Truck or order not found!', 'error'); return; }
   if (t.dispatchQueue.length >= CFG.MAX_DISPATCH_QUEUE) { toast('Queue full!', 'error'); return; }
   if (t.fuel < 0.15) { toast('Needs fuel!', 'error'); return; }
   if (t.damage > 60) { toast('Too damaged!', 'error'); return; }
-  
+
   t.dispatchQueue.push(oid);
-  
+
   if (t.dispatchQueue.length === 1 && t.state === 'idle') {
     startDelivery(t);
   }
-  
+
   toast('Order queued!', 'success');
   closeModal('dispatch-modal');
   renderFleet(); renderOrders();
@@ -430,20 +402,20 @@ window.dispatchToPickup = function(tid, oid) {
 
 function startDelivery(t) {
   if (!t.dispatchQueue || t.dispatchQueue.length === 0 || t.state !== 'idle') return;
-  
+
   var oid = t.dispatchQueue[0];
   var o = G.orders.find(function(x) { return x.id === oid; });
   if (!o) {
     t.dispatchQueue.shift();
     return;
   }
-  
+
   t.orderId = oid;
   t.state = 'to_pickup';
   t.tx = o.from.x;
   t.ty = o.from.y;
   if (o.status === 'accepted') { o.status = 'in_transit'; }
-  
+
   if (!o.assignedTrucks) o.assignedTrucks = [];
   if (o.assignedTrucks.indexOf(t.id) < 0) o.assignedTrucks.push(t.id);
 }
@@ -453,80 +425,67 @@ function processQueue(t) {
     t.state = 'idle';
     return;
   }
-  
+
   var currentOid = t.dispatchQueue[0];
   var currentO = G.orders.find(function(x) { return x.id === currentOid; });
-  
+
   if (currentO) {
     t.dispatchQueue.shift();
     processQueue(t);
     return;
   }
-  
+
   t.dispatchQueue.shift();
   t.orderId = null;
   t.currentCargo = 0;
   t.state = 'idle';
-  
+
   if (t.dispatchQueue.length > 0) {
     startDelivery(t);
   }
 }
 
-// ==================== ORDER 
+// ==================== ORDER GENERATION ====================
+
 function generateOrders() {
   if (isPaused) return;
   var acts = G.contracts.filter(function(c) { return c.active; });
   if (acts.length === 0) return;
-  
+
   acts.forEach(function(c) {
-    // Random chance to generate order (30-60% per contract)
-    if (Math.random() > 0.4 + Math.random() * 0.2) return;
-    
+    if (Math.random() > 0.4) return;
+
     // Get freight type(s) - can be string or array
-    var ft = c.ft;
+    var ft = c.companyData ? c.companyData.ft : c.ft;
+    if (!ft) return;
     if (Array.isArray(ft)) {
       ft = ft[Math.floor(Math.random() * ft.length)];
     }
-    
-    var locs = Object.values(LOC).filter(function(l) { 
-      return l.ft.indexOf(ft) >= 0 || l.ft.indexOf('all') >= 0; 
-    });
+
+    var locs = Object.values(LOC).filter(function(l) { return l.ft.indexOf(ft) >= 0; });
     if (locs.length < 2) return;
-    
+
     var from = locs[Math.floor(Math.random() * locs.length)];
     var to = locs[Math.floor(Math.random() * locs.length)];
-    while (to === from) {
-      to = locs[Math.floor(Math.random() * locs.length)];
-    }
-    
-    // Random units (15-50 range)
+    while (to === from) to = locs[Math.floor(Math.random() * locs.length)];
+
     var units = Math.floor(15 + Math.random() * 35);
-    
-    // Distance-based reward calculation
     var dist = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
-    var baseReward = units * 12 + (dist * 100);
-    var rewardVariability = 0.7 + Math.random() * 0.6; // 0.7-1.3x variance
-    var reward = Math.round(baseReward * rewardVariability);
-    
+    var reward = Math.round(units * 15 * (1 + dist) * (0.8 + Math.random() * 0.4));
+
     G.orders.push({
-      id: uid('order'), 
-      contractId: c.id, 
-      ft: ft,
-      units: units, 
-      delivered: 0, 
-      from: from, 
-      to: to,
-      reward: reward, 
-      status: 'pending',
+      id: uid('order'), contractId: c.id, ft: ft,
+      units: units, delivered: 0, from: from, to: to,
+      reward: reward, status: 'pending',
       createdTick: G.tick,
       acceptedTick: 0,
       assignedTrucks: []
     });
   });
-  
+
   renderOrders();
 }
+
 // ==================== ARRIVAL HANDLING ====================
 
 function handleArrival(t) {
@@ -534,10 +493,10 @@ function handleArrival(t) {
     t.state = 'idle';
     return;
   }
-  
+
   var oid = t.dispatchQueue[0];
   var o = G.orders.find(function(x) { return x.id === oid; });
-  
+
   if (t.state === 'to_pickup') {
     if (!o) {
       t.dispatchQueue.shift();
@@ -574,16 +533,16 @@ function handleArrival(t) {
       var ct = G.contracts.find(function(x) { return x.id === o.contractId; });
       if (ct) { ct.weeklyVol += o.units; }
       toast('ORDER COMPLETE! +' + reward, late ? 'warning' : 'success');
-      
+
       if (o.assignedTrucks) {
         o.assignedTrucks = o.assignedTrucks.filter(function(id) { return id !== t.id; });
       }
-      
+
       G.orders = G.orders.filter(function(x) { return x.id !== oid; });
     } else {
       toast('Delivered ' + o.delivered + '/' + o.units + '. Continuing...', 'info');
     }
-    
+
     processQueue(t);
 
   } else if (t.state === 'returning') {
@@ -600,7 +559,7 @@ function handleArrival(t) {
     t.state = 'idle';
     t.currentCargo = 0;
   }
-  
+
   renderAll();
 }
 
@@ -785,7 +744,7 @@ function checkWeeklyVolumes() {
     if (!c.active) return;
     if (c.weeklyVol < c.weeklyGoal) {
       var shortage = c.weeklyGoal - c.weeklyVol;
-      var fine = Math.round(shortage * c.companyData.finePct * 100);
+      var fine = Math.round(shortage * (c.companyData ? c.companyData.finePct : CFG.finePct) * 100);
       totalFine += fine;
       toast(c.company + ' MISSED goal: -$' + fine, 'error');
       toCancel.push(c);
