@@ -548,8 +548,43 @@ function handleArrival(t) {
   t.x = t.tx;
   t.y = t.ty;
 
+  // Check returning FIRST (before checking queue!)
+  if (t.state === 'returning') {
+    var h = null;
+    for (var i = 0; i < G.hubs.length; i++) { 
+      if (G.hubs[i].id === t.homeHub) { h = G.hubs[i]; break; } 
+    }
+    
+    if (!h) {
+      console.error('[Arrival] Home hub not found! homeHub:', t.homeHub);
+      t.state = 'idle';
+      return;
+    }
+    
+    // REFUEL AND REPAIR HERE
+    t.fuel = 1.0;  // FULL REFUEL
+    t.damage = Math.max(0, t.damage - CFG.repairAmt);
+    var cost = Math.round(h.maint * 0.1);
+    G.cash -= cost;
+    if (t.assignedDriver !== null && t.assignedDriver !== undefined) { 
+      G.drivers[t.assignedDriver].xp += 5; 
+    }
+    toast('Refueled/Repaired at ' + h.name + ' (-$' + cost + ')', 'info');
+    
+    // Reset truck
+    t.dispatchQueue = [];
+    t.orderId = null;
+    t.currentCargo = 0;
+    t.state = 'idle';
+    
+    renderAll();
+    return;
+  }
+
+  // Now check if no queue for non-returning states
   if (!t.dispatchQueue || t.dispatchQueue.length === 0) {
     t.state = 'idle';
+    renderAll();
     return;
   }
 
@@ -560,7 +595,7 @@ function handleArrival(t) {
     if (!o) {
       t.dispatchQueue.shift();
       t.state = 'idle';
-      console.log('[Arrival] Order deleted while to_pickup:', oid);
+      renderAll();
       return;
     }
     var remaining = o.units - o.delivered;
@@ -573,7 +608,7 @@ function handleArrival(t) {
     if (!o) {
       t.dispatchQueue.shift();
       t.state = 'idle';
-      console.log('[Arrival] Order deleted while to_dropoff:', oid);
+      renderAll();
       return;
     }
     o.delivered += t.currentCargo;
@@ -599,50 +634,17 @@ function handleArrival(t) {
         o.assignedTrucks = o.assignedTrucks.filter(function(id) { return id !== t.id; });
       }
 
-      // Remove from queue AFTER completion
       t.dispatchQueue.shift();
       G.orders = G.orders.filter(function(x) { return x.id !== oid; });
 
-      // Process next in queue
       processQueue(t);
     } else {
       toast('Delivered ' + o.delivered + '/' + o.units + '. Continuing...', 'info');
       processQueue(t);
     }
 
-  } else if (t.state === 'returning') {
-    var h = null;
-    for (var i = 0; i < G.hubs.length; i++) { 
-      if (G.hubs[i].id === t.homeHub) { h = G.hubs[i]; break; } 
-    }
-    
-    if (!h) {
-      console.error('[Arrival] Home hub not found! homeHub:', t.homeHub);
-      t.state = 'idle';
-      return;
-    }
-    
-    // DEBUG LOGGING
-    console.log('[Arrival] Truck ' + t.id + ' returning to hub ' + h.name + 
-                ' | Fuel: ' + Math.round(t.fuel * 100) + '% | Damage: ' + Math.round(t.damage) + '%');
-    
-    t.x = h.x; t.y = h.y; t.fuel = 1.0;  // REFUEL HERE
-    t.damage = Math.max(0, t.damage - CFG.repairAmt);
-    var cost = Math.round(h.maint * 0.1);
-    G.cash -= cost;
-    if (t.assignedDriver !== null && t.assignedDriver !== undefined) { 
-      G.drivers[t.assignedDriver].xp += 5; 
-    }
-    toast('Refueled/Repaired at ' + h.name + ' (-$' + cost + ')', 'info');
-    
-    // Clear queue when returning to hub (refuel mode)
-    t.dispatchQueue = [];
-    t.orderId = null;
-    
+  } else {
     t.state = 'idle';
-    t.currentCargo = 0;
-    
-    console.log('[Arrival] Refueled complete. New state: ' + t.state);
   }
 
   renderAll();
