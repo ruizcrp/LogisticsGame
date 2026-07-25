@@ -419,15 +419,26 @@ window.dispatchToPickup = function(tid, oid) {
 
   if (!t || !o) { toast('Truck or order not found!', 'error'); return; }
   if (t.dispatchQueue.length >= CFG.MAX_DISPATCH_QUEUE) { toast('Queue full!', 'error'); return; }
-  if (t.fuel < 0.15) { toast('Needs fuel!', 'error'); return; }
+  
+  // Calculate minimum fuel needed to reach hub from pickup location
+  var h = null;
+  for (var hi = 0; hi < G.hubs.length; hi++) { if (G.hubs[hi].id === t.homeHub) { h = G.hubs[hi]; break; } }
+  var fuelThreshold = 0.20; // Minimum fuel reserve required
+  
+  if (t.fuel <= fuelThreshold) { 
+    toast('Not enough fuel! Need at least ' + Math.round(fuelThreshold * 100) + '%.', 'error'); 
+    return; 
+  }
+  
+  // Check if truck can physically reach next destination with current fuel
   if (t.damage > 60) { toast('Too damaged!', 'error'); return; }
-
+  
   t.dispatchQueue.push(oid);
-
+  
   if (t.dispatchQueue.length === 1 && t.state === 'idle') {
     startDelivery(t);
   }
-
+  
   toast('Order queued!', 'success');
   closeModal('dispatch-modal');
   renderFleet(); renderOrders();
@@ -435,23 +446,32 @@ window.dispatchToPickup = function(tid, oid) {
 
 function startDelivery(t) {
   if (!t.dispatchQueue || t.dispatchQueue.length === 0 || t.state !== 'idle') return;
-
+  
+  // BLOCK: Cannot start if fuel is 0 or near-zero
+  if (t.fuel <= 0.01) {
+    toast('Truck has no fuel! Return to hub first.', 'error');
+    t.dispatchQueue = []; // Clear queue to prevent infinite loop
+    t.state = 'idle';
+    return;
+  }
+  
   var oid = t.dispatchQueue[0];
   var o = G.orders.find(function(x) { return x.id === oid; });
   if (!o) {
     t.dispatchQueue.shift();
     return;
   }
-
+  
   t.orderId = oid;
   t.state = 'to_pickup';
   t.tx = o.from.x;
   t.ty = o.from.y;
   if (o.status === 'accepted') { o.status = 'in_transit'; }
-
+  
   if (!o.assignedTrucks) o.assignedTrucks = [];
   if (o.assignedTrucks.indexOf(t.id) < 0) o.assignedTrucks.push(t.id);
 }
+
 
 function processQueue(t) {
   if (!t.dispatchQueue || t.dispatchQueue.length === 0) {
@@ -613,7 +633,7 @@ function handleArrival(t) {
     }
     o.delivered += t.currentCargo;
     t.currentCargo = 0;
-    t.fuel = Math.max(0, t.fuel - CFG.fuelPerTrip);
+    
     if (Math.random() < 0.03) t.damage = Math.min(100, t.damage + 15);
 
     if (o.delivered >= o.units) {
@@ -719,53 +739,75 @@ function draw() {
   });
 
   // Move trucks
-  G.fleet.forEach(function(t) {
-    if (t.state === 'idle') return;
-    var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
-    var speedMod = drv ? DT[drv.type].speedMod : 1.0;
-    var spd = t.speed * 0.0008 * speedMod;
-    var dx = t.tx - t.x, dy = t.ty - t.y;
-    var dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (dist < 0.02) {
-      // FORCE REFUEL: Check returning state BEFORE handleArrival
-      if (t.state === 'returning') {
-        var hub = null;
-        for (var hi = 0; hi < G.hubs.length; hi++) {
-          if (G.hubs[hi].id === t.homeHub) { hub = G.hubs[hi]; break; }
-        }
-        if (hub) {
-          t.x = hub.x;
-          t.y = hub.y;
-          t.fuel = 1.0;
-          t.damage = Math.max(0, t.damage - CFG.repairAmt);
-          var refuelCost = Math.round(hub.maint * 0.1);
-          G.cash -= refuelCost;
-          if (t.assignedDriver !== null && t.assignedDriver !== undefined) {
-            G.drivers[t.assignedDriver].xp += 5;
-          }
-          toast('Refueled/Repaired at ' + hub.name + ' (-$' + refuelCost + ')', 'info');
-          t.dispatchQueue = [];
-          t.orderId = null;
-          t.currentCargo = 0;
-          t.state = 'idle';
-          renderAll();
-          return;
-        } else {
-          // No hub found - just go idle
-          t.state = 'idle';
-          renderAll();
-          return;
-        }
+  // Move trucks
+G.fleet.forEach(function(t) {
+  if (t.state === 'idle') return;
+  
+  var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
+  var speedMod = drv ? DT[drv.type].speedMod : 1.0;
+  var spd = t.speed * 0.0008 * speedMod;
+  var dx = t.tx - t.x, dy = t.ty - t.y;
+  var dist = Math.sqrt(dx * dx + dy * dy);
+
+  // CONSUME FUEL BASED ON DISTANCE TRAVELED THIS FRAME
+  var fuelConsumption = dist * CFG.fuelPerTrip / 0.02; // Normalize to distance moved
+  t.fuel = Math.max(0, t.fuel - fuelConsumption);
+  
+  // Check for fuel exhaustion mid-route
+  if (t.fuel <= 0.01 && t.state !== 'returning') {
+    toast('Truck ran out of fuel! Returning to hub...', 'error');
+    // Find nearest hub and return
+    if (G.hubs.length > 0) {
+      var h = G.hubs[0]; // Default to home hub
+      for (var hi = 0; hi < G.hubs.length; hi++) { 
+        if (G.hubs[hi].id === t.homeHub) { h = G.hubs[hi]; break; } 
       }
-
-      // Non-returning arrivals go through handleArrival
-      handleArrival(t);
-    } else {
-      t.x += (dx / dist) * spd;
-      t.y += (dy / dist) * spd;
+      t.tx = h.x; t.ty = h.y;
+      t.state = 'returning';
+      t.dispatchQueue = []; // Emergency return clears queue
+      return;
     }
-  });
+  }
+
+  if (dist < 0.02) {
+    // FORCE REFUEL: Check returning state FIRST
+    if (t.state === 'returning') {
+      var hub = null;
+      for (var hi = 0; hi < G.hubs.length; hi++) {
+        if (G.hubs[hi].id === t.homeHub) { hub = G.hubs[hi]; break; }
+      }
+      if (hub) {
+        t.x = hub.x;
+        t.y = hub.y;
+        t.fuel = 1.0; // Refill to full
+        t.damage = Math.max(0, t.damage - CFG.repairAmt);
+        var refuelCost = Math.round(hub.maint * 0.1);
+        G.cash -= refuelCost;
+        if (t.assignedDriver !== null && t.assignedDriver !== undefined) {
+          G.drivers[t.assignedDriver].xp += 5;
+        }
+        toast('Refueled/Repaired at ' + hub.name + ' (-$' + refuelCost + ')', 'info');
+        t.dispatchQueue = [];
+        t.orderId = null;
+        t.currentCargo = 0;
+        t.state = 'idle';
+        renderAll();
+        return;
+      } else {
+        t.state = 'idle';
+        renderAll();
+        return;
+      }
+    }
+
+    // Non-returning arrivals go through handleArrival
+    handleArrival(t);
+  } else {
+    t.x += (dx / dist) * spd;
+    t.y += (dy / dist) * spd;
+  }
+});
   
 // ==================== UPDATE LOOP ====================
 
