@@ -718,41 +718,55 @@ function draw() {
     ctx.beginPath(); ctx.arc(dx, dy, 7, 0, Math.PI * 2); ctx.fill();
   });
 
+  // Move trucks
   G.fleet.forEach(function(t) {
-    var cfg = TT_BASE[t.type];
-    var sz = t.type === 't5' ? 14 : (t.type === 't4' ? 12 : (t.type === 't3' ? 10 : 8));
-    ctx.shadowColor = cfg.color; ctx.shadowBlur = 15;
-    ctx.fillStyle = cfg.color;
-    ctx.fillRect(t.x * W - sz, t.y * H - sz / 2, sz * 2, sz);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = (t.fuel < 0.3 || t.damage > 60) ? '#ff6b6b' : '#4ecca3';
-    ctx.beginPath(); ctx.arc(t.x * W - sz - 3, t.y * H, 3, 0, Math.PI * 2); ctx.fill();
-    if (t.currentCargo > 0) {
-      ctx.fillStyle = '#4ecca3';
-      ctx.fillRect(t.x * W - sz + 3, t.y * H - 2, 4, 4);
-    }
-    if (t.dispatchQueue && t.dispatchQueue.length > 0) {
-      ctx.fillStyle = '#ffd700';
-      for (var qi = 0; qi < t.dispatchQueue.length; qi++) {
-        ctx.beginPath(); ctx.arc(t.x * W + sz + 4 + (qi * 6), t.y * H, 3, 0, Math.PI * 2); ctx.fill();
+    if (t.state === 'idle') return;
+    var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
+    var speedMod = drv ? DT[drv.type].speedMod : 1.0;
+    var spd = t.speed * 0.0008 * speedMod;
+    var dx = t.tx - t.x, dy = t.ty - t.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 0.02) {
+      // FORCE REFUEL: Check returning state BEFORE handleArrival
+      if (t.state === 'returning') {
+        var hub = null;
+        for (var hi = 0; hi < G.hubs.length; hi++) {
+          if (G.hubs[hi].id === t.homeHub) { hub = G.hubs[hi]; break; }
+        }
+        if (hub) {
+          t.x = hub.x;
+          t.y = hub.y;
+          t.fuel = 1.0;
+          t.damage = Math.max(0, t.damage - CFG.repairAmt);
+          var refuelCost = Math.round(hub.maint * 0.1);
+          G.cash -= refuelCost;
+          if (t.assignedDriver !== null && t.assignedDriver !== undefined) {
+            G.drivers[t.assignedDriver].xp += 5;
+          }
+          toast('Refueled/Repaired at ' + hub.name + ' (-$' + refuelCost + ')', 'info');
+          t.dispatchQueue = [];
+          t.orderId = null;
+          t.currentCargo = 0;
+          t.state = 'idle';
+          renderAll();
+          return;
+        } else {
+          // No hub found - just go idle
+          t.state = 'idle';
+          renderAll();
+          return;
+        }
       }
-    }
-    if (t.state !== 'idle' && t.state !== 'returning') {
-      ctx.strokeStyle = 'rgba(109,74,255,0.5)';
-      ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(t.x * W, t.y * H); ctx.lineTo(t.tx * W, t.ty * H); ctx.stroke();
-      ctx.setLineDash([]);
+
+      // Non-returning arrivals go through handleArrival
+      handleArrival(t);
+    } else {
+      t.x += (dx / dist) * spd;
+      t.y += (dy / dist) * spd;
     }
   });
-
-  if (isPaused) {
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#ffd700'; ctx.font = 'bold 32px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('⏸ PAUSED', W / 2, H / 2);
-  }
-}
-
+  
 // ==================== UPDATE LOOP ====================
 
 function update() {
