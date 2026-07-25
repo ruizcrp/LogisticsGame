@@ -544,6 +544,10 @@ function generateOrders() {
 // ==================== ARRIVAL HANDLING ====================
 
 function handleArrival(t) {
+  // Snap position to exact coordinates on arrival
+  t.x = t.tx;
+  t.y = t.ty;
+
   if (!t.dispatchQueue || t.dispatchQueue.length === 0) {
     t.state = 'idle';
     return;
@@ -556,6 +560,7 @@ function handleArrival(t) {
     if (!o) {
       t.dispatchQueue.shift();
       t.state = 'idle';
+      console.log('[Arrival] Order deleted while to_pickup:', oid);
       return;
     }
     var remaining = o.units - o.delivered;
@@ -568,6 +573,7 @@ function handleArrival(t) {
     if (!o) {
       t.dispatchQueue.shift();
       t.state = 'idle';
+      console.log('[Arrival] Order deleted while to_dropoff:', oid);
       return;
     }
     o.delivered += t.currentCargo;
@@ -593,26 +599,50 @@ function handleArrival(t) {
         o.assignedTrucks = o.assignedTrucks.filter(function(id) { return id !== t.id; });
       }
 
+      // Remove from queue AFTER completion
+      t.dispatchQueue.shift();
       G.orders = G.orders.filter(function(x) { return x.id !== oid; });
+
+      // Process next in queue
+      processQueue(t);
     } else {
       toast('Delivered ' + o.delivered + '/' + o.units + '. Continuing...', 'info');
+      processQueue(t);
     }
-
-    processQueue(t);
 
   } else if (t.state === 'returning') {
     var h = null;
-    for (var i = 0; i < G.hubs.length; i++) { if (G.hubs[i].id === t.homeHub) { h = G.hubs[i]; break; } }
-    if (h) {
-      t.x = h.x; t.y = h.y; t.fuel = 1.0;
-      t.damage = Math.max(0, t.damage - CFG.repairAmt);
-      var cost = Math.round(h.maint * 0.1);
-      G.cash -= cost;
-      if (t.assignedDriver !== null && t.assignedDriver !== undefined) { G.drivers[t.assignedDriver].xp += 5; }
-      toast('Refueled/Repaired at ' + h.name + ' (-$' + cost + ')', 'info');
+    for (var i = 0; i < G.hubs.length; i++) { 
+      if (G.hubs[i].id === t.homeHub) { h = G.hubs[i]; break; } 
     }
+    
+    if (!h) {
+      console.error('[Arrival] Home hub not found! homeHub:', t.homeHub);
+      t.state = 'idle';
+      return;
+    }
+    
+    // DEBUG LOGGING
+    console.log('[Arrival] Truck ' + t.id + ' returning to hub ' + h.name + 
+                ' | Fuel: ' + Math.round(t.fuel * 100) + '% | Damage: ' + Math.round(t.damage) + '%');
+    
+    t.x = h.x; t.y = h.y; t.fuel = 1.0;  // REFUEL HERE
+    t.damage = Math.max(0, t.damage - CFG.repairAmt);
+    var cost = Math.round(h.maint * 0.1);
+    G.cash -= cost;
+    if (t.assignedDriver !== null && t.assignedDriver !== undefined) { 
+      G.drivers[t.assignedDriver].xp += 5; 
+    }
+    toast('Refueled/Repaired at ' + h.name + ' (-$' + cost + ')', 'info');
+    
+    // Clear queue when returning to hub (refuel mode)
+    t.dispatchQueue = [];
+    t.orderId = null;
+    
     t.state = 'idle';
     t.currentCargo = 0;
+    
+    console.log('[Arrival] Refueled complete. New state: ' + t.state);
   }
 
   renderAll();
@@ -750,7 +780,7 @@ function update() {
     var spd = t.speed * 0.0008 * speedMod;
     var dx = t.tx - t.x, dy = t.ty - t.y;
     var dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 0.01) { handleArrival(t); }
+    if (dist < 0.02) { handleArrival(t); }
     else { t.x += (dx / dist) * spd; t.y += (dy / dist) * spd; }
   });
 
