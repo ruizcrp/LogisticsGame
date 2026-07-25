@@ -328,7 +328,7 @@ function renderFleet() {
 
   html.push('<div class="section-lbl">🚚 Individual Trucks</div>');
   G.fleet.forEach(function(t) {
-    var cfg = TT_BASE[t.type];
+        var cfg = TT_BASE[t.type];
     var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
     var st = t.state === 'idle' ? '<span style="color:#4ecca3">🟢 IDLE</span>' :
              t.state === 'to_pickup' ? '<span style="color:#f39c12">📍→ PICKUP</span>' :
@@ -336,10 +336,9 @@ function renderFleet() {
              '<span style="color:#888">🔄 RETURNING</span>';
     var ti = Object.keys(TT_BASE).indexOf(t.type);
     var hub = G.hubs.find(function(h) { return h.id === t.homeHub; });
-    // Find this part in renderFleet and update:
-var fuelWarn = t.fuel < 0.3 ? '<span style="color:#ff6b6b">⛽ LOW (' + Math.round(t.fuel * 100) + '%)</span> ' :
-              t.fuel < 0.15 ? '<span style="color:#ff0000;font-weight:bold">⛽ CRITICAL (' + Math.round(t.fuel * 100) + '%)</span> ' :
-              'Fuel: ' + Math.round(t.fuel * 100) + '% ';
+    var fuelWarn = t.fuel < 0.3 ? '<span style="color:#ff6b6b">⛽ LOW (' + Math.round(t.fuel * 100) + '%)</span> ' :
+                   t.fuel < 0.15 ? '<span style="color:#ff0000;font-weight:bold">⛽ CRITICAL (' + Math.round(t.fuel * 100) + '%)</span> ' :
+                   '';
     var dmgWarn = t.damage > 60 ? '<span style="color:#ff6b6b">🔧 DAMAGED</span> ' : '';
     var queueInfo = '<br>📌 Queue: <b style="color:' + (t.dispatchQueue ? (t.dispatchQueue.length < CFG.MAX_DISPATCH_QUEUE ? '#4ecca3' : '#f39c12') : '#666') + '">' + (t.dispatchQueue ? t.dispatchQueue.length : 0) + '/' + CFG.MAX_DISPATCH_QUEUE + '</b>';
 
@@ -348,11 +347,11 @@ var fuelWarn = t.fuel < 0.3 ? '<span style="color:#ff6b6b">⛽ LOW (' + Math.rou
       '<div class="card-row"><span class="card-title"><span class="truck-dot" style="background:' + cfg.color + ';"></span>' + cfg.name + '</span>' +
       '<span class="badge badge-' + (ti+1) + '">T' + (ti+1) + '</span></div>' +
       '<div class="card-sub">Cap: <b style="color:#4ecca3">' + t.capacity + '</b> | Speed: <b style="color:#3498db">' + t.speed.toFixed(1) + '</b> | ' + st + queueInfo + '</div>' +
-      '<div class="card-sub">Fuel: ' + Math.round(t.fuel * 100) + '% | Damage: ' + Math.round(t.damage) + '%</div>' +
+      '<div class="card-sub">' + fuelWarn + dmgWarn + 'Fuel: ' + Math.round(t.fuel * 100) + '% | Damage: ' + Math.round(t.damage) + '%</div>' +
       '<div class="card-sub">🔧 Maint: <b style="color:#f39c12">$' + cfg.maint + '/day</b> | Bought: $' + t.costBought.toLocaleString() + '</div>' +
       '<div class="card-sub">📦 Freight: ' + cfg.compat.map(function(f) { return FT[f] ? FT[f].icon : f; }).join(' ') + '</div>' +
-      '<div class="card-sub">' + fuelWarn + dmgWarn + '🏠 Hub: ' + (hub ? hub.name : 'None') + '</div>' +
-           '<div class="card-row" style="margin-top:8px">' +
+      '<div class="card-sub">🏠 Hub: ' + (hub ? hub.name : 'None') + '</div>' +
+      '<div class="card-row" style="margin-top:8px">' +
         '<span class="badge badge-' + (drv ? (Object.keys(DT).indexOf(drv.type)+1) : 0) + '">' + (drv ? drv.name : 'NO DRIVER') + '</span>' +
         '<div style="margin-left:auto;display:flex;gap:4px">' +
           '<button class="btn btn-secondary" style="width:auto;padding:6px 12px;font-size:11px" onclick="event.stopPropagation();openDispatch(' + t.id + ');">⚡ Dispatch</button>' +
@@ -360,8 +359,6 @@ var fuelWarn = t.fuel < 0.3 ? '<span style="color:#ff6b6b">⛽ LOW (' + Math.rou
         '</div>' +
       '</div></div>'
     );
-  });
-
   c.innerHTML = html.join('');
 }
 
