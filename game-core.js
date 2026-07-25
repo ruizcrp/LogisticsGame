@@ -396,13 +396,11 @@ window.sellTruck = function(truckId) {
   
   var refund = Math.round(t.costBought / 2);
   
-  // Unassign driver if any
   if (t.assignedDriver !== null && t.assignedDriver !== undefined) {
     var d = G.drivers[t.assignedDriver];
     if (d) { d.truckId = null; }
   }
   
-  // Remove from fleet
   G.fleet = G.fleet.filter(function(x) { return x.id !== truckId; });
   G.cash += refund;
   
@@ -410,6 +408,7 @@ window.sellTruck = function(truckId) {
   closeModal('dispatch-modal');
   renderFleet(); renderDrivers(); renderTopBar();
 };
+
 
 window.dispatchToPickup = function(tid, oid) {
   var t = null;
