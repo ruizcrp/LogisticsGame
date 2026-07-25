@@ -93,46 +93,38 @@ window.buyHub = function(tierKey) {
 window.openDriver = function(truckId) {
   var t = G.fleet.find(function(x) { return x.id === truckId; });
   if (!t) return;
-  
   var cfg = TT_BASE[t.type];
   var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
-  
   document.getElementById('dispatch-info').innerHTML =
     '<b>Assign Driver to ' + cfg.name + '</b>' +
     '<br>Current driver: ' + (drv ? drv.name + ' (' + DT[drv.type].name + ')' : '<span style="color:#ff6b6b">None</span>');
-
   var list = document.getElementById('dispatch-items');
   var html = [];
-  
-  html.push('<div class="section-lbl">👨‍✈️ Available Drivers (Click to Assign)</div>');
-  
+  html.push('<div class="section-lbl">Available Drivers (Click to Assign)</div>');
   if (G.drivers.length === 0) {
-    html.push('<div class="empty-msg"><span>👨‍✈️</span>No drivers available. Hire from Market!</div>');
+    html.push('<div class="empty-msg"><span>No drivers available. Hire from Market!</span></div>');
   } else {
     G.drivers.forEach(function(d) {
       var isAssigned = d.truckId !== null && d.truckId !== undefined;
       var isOnThisTruck = d.truckId === truckId;
       var canAssign = !isAssigned || isOnThisTruck;
-      
       html.push(
         '<div class="dispatch-item ' + (isOnThisTruck ? 'selected-driver' : '') + '" ' +
         (canAssign ? 'onclick="assignDriverToTruck(' + truckId + ',' + d.id + ');" ' : '') +
         'style="' + (isAssigned && !isOnThisTruck ? 'opacity:0.4;' : '') + '">' +
         '<div style="display:flex;justify-content:space-between">' +
         '<span>' + d.name + '</span>' +
-        '<span>' + (isAssigned ? (isOnThisTruck ? '<b style="color:#4ecca3">● Assigned</b>' : '<span style="color:#f39c12">Busy</span>') : '<span style="color:#888">Free</span>') + '</span>' +
+        '<span>' + (isAssigned ? (isOnThisTruck ? '<b style="color:#4ecca3">Assigned</b>' : '<span style="color:#f39c12">Busy</span>') : '<span style="color:#888">Free</span>') + '</span>' +
         '</div>' +
-        '<div style="font-size:10px;color:#888">Tier T' + (Object.keys(DT).indexOf(d.type)+1) + ' | ' + DT[d.type].name + ' | Wage: $' + DT[d.type].wage + '/day</div>' +
+        '<div style="font-size:10px;color:#888">Tier ' + (Object.keys(DT).indexOf(d.type)+1) + ' | ' + DT[d.type].name + ' | Wage: $' + DT[d.type].wage + '/day</div>' +
         '</div>'
       );
     });
   }
-  
   if (drv) {
     html.push('<div class="section-lbl" style="margin-top:10px;color:#ff6b6b">Actions</div>');
-    html.push('<div class="dispatch-item" onclick="unassignDriverFromTruck(' + truckId + ');">🔴 Unassign Current Driver (' + drv.name + ')</div>');
+    html.push('<div class="dispatch-item" onclick="unassignDriverFromTruck(' + truckId + ');">Unassign Current Driver (' + drv.name + ')</div>');
   }
-  
   list.innerHTML = html.join('');
   document.getElementById('dispatch-modal').classList.add('show');
 };
@@ -140,26 +132,17 @@ window.openDriver = function(truckId) {
 window.assignDriverToTruck = function(truckId, driverId) {
   var t = G.fleet.find(function(x) { return x.id === truckId; });
   var d = G.drivers.find(function(x) { return x.id === driverId; });
-  
   if (!t || !d) { toast('Truck or driver not found!', 'error'); return; }
-  
   if (d.truckId !== null && d.truckId !== undefined) {
     var prevTruck = G.fleet.find(function(x) { return x.id === d.truckId; });
-    if (prevTruck) {
-      prevTruck.assignedDriver = null;
-    }
+    if (prevTruck) prevTruck.assignedDriver = null;
   }
-  
   if (t.assignedDriver !== null && t.assignedDriver !== undefined) {
     var oldDriver = G.drivers[t.assignedDriver];
-    if (oldDriver) {
-      oldDriver.truckId = null;
-    }
+    if (oldDriver) oldDriver.truckId = null;
   }
-  
   t.assignedDriver = driverId;
   d.truckId = truckId;
-  
   toast('Assigned ' + d.name + ' to truck!', 'success');
   closeModal('dispatch-modal');
   renderFleet(); renderDrivers();
@@ -168,18 +151,30 @@ window.assignDriverToTruck = function(truckId, driverId) {
 window.unassignDriverFromTruck = function(truckId) {
   var t = G.fleet.find(function(x) { return x.id === truckId; });
   if (!t) return;
-  
   if (t.assignedDriver !== null && t.assignedDriver !== undefined) {
     var d = G.drivers[t.assignedDriver];
-    if (d) {
-      d.truckId = null;
-    }
+    if (d) d.truckId = null;
   }
-  
   t.assignedDriver = null;
   toast('Driver unassigned!', 'info');
   closeModal('dispatch-modal');
   renderFleet(); renderDrivers();
+};
+
+window.sellTruck = function(truckId) {
+  var t = G.fleet.find(function(x) { return x.id === truckId; });
+  if (!t) { toast('Truck not found!', 'error'); return; }
+  if (t.state !== 'idle') { toast('Truck is busy! Return to hub first.', 'error'); return; }
+  var refund = Math.round(t.costBought / 2);
+  if (t.assignedDriver !== null && t.assignedDriver !== undefined) {
+    var d = G.drivers[t.assignedDriver];
+    if (d) d.truckId = null;
+  }
+  G.fleet = G.fleet.filter(function(x) { return x.id !== truckId; });
+  G.cash += refund;
+  toast('Sold truck for $' + refund.toLocaleString() + '!', 'success');
+  closeModal('dispatch-modal');
+  renderFleet(); renderDrivers(); renderTopBar();
 };
 
 // ==================== RENDERING ====================
@@ -205,7 +200,6 @@ function renderTopBar() {
 function renderOrders() {
   var c = document.getElementById('orders-list');
   var html = [];
-
   var pending = G.orders.filter(function(o) { return o.status === 'pending'; });
   if (pending.length > 0) {
     html.push('<div class="section-lbl">Pending Orders - Must Accept Within ' + (CFG.ACCEPT_DEADLINE / CFG.dayTicks).toFixed(1) + ' Days</div>');
@@ -218,20 +212,18 @@ function renderOrders() {
       var remainingTicks = CFG.ACCEPT_DEADLINE - elapsed;
       var daysLeft = (Math.max(0, remainingTicks) / CFG.dayTicks).toFixed(1);
       var urg = remainingTicks < CFG.dayTicks * 0.5 ? '#ff6b6b' : (remainingTicks < CFG.dayTicks ? '#f39c12' : '#4ecca3');
-      
       html.push(
         '<div class="card" onclick="acceptOrder(' + o.id + ');">' +
         '<div class="card-row"><span class="card-title">' + FT[o.ft].icon +
-        ' <b>' + o.from.name + '</b> → <b>' + o.to.name + '</b></span>' +
+        ' <b>' + o.from.name + '</b> -> <b>' + o.to.name + '</b></span>' +
         '<span class="card-reward">$' + o.reward + '</span></div>' +
         '<div class="card-sub">' + o.units + ' ' + FT[o.ft].unit +
         ' | Idle compatible trucks: ' + compat + '</div>' +
-        '<div class="card-sub" style="color:' + urg + '">⏱ Accept within ' + daysLeft + ' days (expires!)</div>' +
+        '<div class="card-sub" style="color:' + urg + '">Accept within ' + daysLeft + ' days (expires!)</div>' +
         '</div>'
       );
     });
   }
-
   var active = G.orders.filter(function(o) { return o.status === 'accepted' || o.status === 'in_transit'; });
   if (active.length > 0) {
     html.push('<div class="section-lbl" style="color:#f39c12">Active Orders</div>');
@@ -243,16 +235,15 @@ function renderOrders() {
       var urg = remainingTicks < CFG.dayTicks ? '#ff6b6b' : (remainingTicks < CFG.dayTicks * 2 ? '#f39c12' : '#4ecca3');
       html.push(
         '<div class="card"><div class="card-row"><span class="card-title">' + FT[o.ft].icon +
-        ' <b>' + o.from.name + '</b> → <b>' + o.to.name + '</b></span>' +
+        ' <b>' + o.from.name + '</b> -> <b>' + o.to.name + '</b></span>' +
         '<span class="card-reward">$' + o.reward + '</span></div>' +
         '<div class="card-sub">' + o.delivered + '/' + o.units + ' ' + FT[o.ft].unit + ' (' + pct + '%)</div>' +
-        '<div class="card-sub" style="color:' + urg + '">⏱ ' + daysLeft + ' days remaining</div>' +
+        '<div class="card-sub" style="color:' + urg + '">' + daysLeft + ' days remaining</div>' +
         '<div class="progress"><div class="progress-fill" style="width:' + pct + '%;background:#4ecca3"></div></div></div>'
       );
     });
   }
-
-  if (html.length === 0) html.push('<div class="empty-msg"><span>📋</span>No orders. Sign contracts!</div>');
+  if (html.length === 0) html.push('<div class="empty-msg"><span>No orders. Sign contracts!</span></div>');
   c.innerHTML = html.join('');
 }
 
@@ -261,41 +252,36 @@ function renderContracts() {
   var active = G.contracts.filter(function(x) { return x && x.active; });
   var avail = G.availableContracts;
   var html = [];
-
   if (avail.length > 0) {
-    html.push('<div class="section-lbl">Available Contracts (Completely Randomized Each Week!)</div>');
+    html.push('<div class="section-lbl">Available Contracts (Randomized Each Week)</div>');
     avail.forEach(function(comp, idx) {
       var can = G.cash >= comp.signFee;
-      var ftDisplay = Array.isArray(comp.ft) 
+      var ftDisplay = Array.isArray(comp.ft)
         ? comp.ft.map(function(f) { return FT[f].icon; }).join('/')
         : FT[comp.ft] ? FT[comp.ft].icon : comp.ft;
-      
       html.push(
-        '<div class="card"><div class="card-row"><span class="card-title">🏢 ' + comp.name + '</span>' +
+        '<div class="card"><div class="card-row"><span class="card-title">' + comp.name + '</span>' +
         '<span class="card-reward">$' + comp.signFee.toLocaleString() + '</span></div>' +
         '<div class="card-sub">Freight: ' + ftDisplay +
-        ' | Weekly Goal: ' + comp.weeklyVol + ' | Fine: ' + Math.round(comp.finePct * 100) + '% of shortage</div>' +
-        '<div class="card-sub" style="color:#888;font-size:9px">Tier T' + comp.tier + ' Difficulty</div>' +
+        ' | Weekly Goal: ' + comp.weeklyVol + ' | Fine: ' + Math.round(comp.finePct * 100) + '%</div>' +
         '<button class="btn" ' + (can ? '' : 'disabled') + ' onclick="signContract(' + idx + ');">' +
         (can ? 'Sign Contract' : 'Need $' + comp.signFee.toLocaleString()) + '</button></div>'
       );
     });
   } else {
-    html.push('<div class="empty-msg"><span>🤝</span>No contracts available this week.</div>');
+    html.push('<div class="empty-msg"><span>No contracts available this week.</span></div>');
   }
-
   if (active.length > 0) {
     html.push('<div class="section-lbl">Active Contracts (Weekly Assessment)</div>');
     active.forEach(function(con) {
       var pct = con.weeklyGoal > 0 ? Math.min(100, Math.round(con.weeklyVol / con.weeklyGoal * 100)) : 0;
       var color = pct < 50 ? '#ff6b6b' : (pct < 80 ? '#f39c12' : '#4ecca3');
-      var ftDisplay = Array.isArray(con.ft) 
+      var ftDisplay = Array.isArray(con.ft)
         ? con.ft.map(function(f) { return FT[f].icon; }).join('/')
         : (FT[con.ft] ? FT[con.ft].icon : con.ft);
-      
       html.push(
         '<div class="card' + (pct < 50 ? ' danger' : '') + '">' +
-        '<div class="card-row"><span class="card-title">🏭 ' + con.company + '</span>' +
+        '<div class="card-row"><span class="card-title">' + con.company + '</span>' +
         '<span class="badge" style="background:' + color + ';color:#1a1a2e">' + pct + '%</span></div>' +
         '<div class="card-sub">This Week: ' + con.weeklyVol + '/' + con.weeklyGoal + '</div>' +
         '<div class="card-sub" style="font-size:9px;color:#888">Freight: ' + ftDisplay + '</div>' +
@@ -304,20 +290,18 @@ function renderContracts() {
       );
     });
   }
-
   c.innerHTML = html.join('');
 }
 
 function renderFleet() {
   var c = document.getElementById('fleet-list');
   if (G.fleet.length === 0) {
-    c.innerHTML = '<div class="empty-msg"><span>🚚</span>No trucks. Buy from Market!</div>';
+    c.innerHTML = '<div class="empty-msg"><span>No trucks. Buy from Market!</span></div>';
     return;
   }
   var totalMaint = G.fleet.reduce(function(s, t) { return s + TT_BASE[t.type].maint; }, 0);
   var idleCount = G.fleet.filter(function(t) { return t.state === 'idle'; }).length;
-
-  var html = ['<div class="section-lbl">📊 Fleet Overview</div>'];
+  var html = ['<div class="section-lbl">Fleet Overview</div>'];
   html.push(
     '<div class="card"><div class="card-row">' +
     '<span class="card-title">Trucks: ' + G.fleet.length + '/' + CFG.maxFleet + '</span>' +
@@ -325,53 +309,49 @@ function renderFleet() {
     '<div class="card-sub">Maintenance: $' + totalMaint.toLocaleString() + '/day total' +
     '<br>Idle: ' + idleCount + ' | Busy: ' + (G.fleet.length - idleCount) + '</div></div>'
   );
-
-  html.push('<div class="section-lbl">🚚 Individual Trucks</div>');
+  html.push('<div class="section-lbl">Individual Trucks</div>');
   G.fleet.forEach(function(t) {
-        var cfg = TT_BASE[t.type];
+    var cfg = TT_BASE[t.type];
     var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
-    var st = t.state === 'idle' ? '<span style="color:#4ecca3">🟢 IDLE</span>' :
-             t.state === 'to_pickup' ? '<span style="color:#f39c12">📍→ PICKUP</span>' :
-             t.state === 'to_dropoff' ? '<span style="color:#3498db">📦→ DELIVER</span>' :
-             '<span style="color:#888">🔄 RETURNING</span>';
+    var st = t.state === 'idle' ? '<span style="color:#4ecca3">IDLE</span>' :
+             t.state === 'to_pickup' ? '<span style="color:#f39c12">-> PICKUP</span>' :
+             t.state === 'to_dropoff' ? '<span style="color:#3498db">-> DELIVER</span>' :
+             '<span style="color:#888">RETURNING</span>';
     var ti = Object.keys(TT_BASE).indexOf(t.type);
     var hub = G.hubs.find(function(h) { return h.id === t.homeHub; });
-    var fuelWarn = t.fuel < 0.3 ? '<span style="color:#ff6b6b">⛽ LOW (' + Math.round(t.fuel * 100) + '%)</span> ' :
-                   t.fuel < 0.15 ? '<span style="color:#ff0000;font-weight:bold">⛽ CRITICAL (' + Math.round(t.fuel * 100) + '%)</span> ' :
-                   '';
-    var dmgWarn = t.damage > 60 ? '<span style="color:#ff6b6b">🔧 DAMAGED</span> ' : '';
-    var queueInfo = '<br>📌 Queue: <b style="color:' + (t.dispatchQueue ? (t.dispatchQueue.length < CFG.MAX_DISPATCH_QUEUE ? '#4ecca3' : '#f39c12') : '#666') + '">' + (t.dispatchQueue ? t.dispatchQueue.length : 0) + '/' + CFG.MAX_DISPATCH_QUEUE + '</b>';
-
+    var fuelWarn = t.fuel < 0.3 ? '<span style="color:#ff6b6b">LOW</span> ' : '';
+    var dmgWarn = t.damage > 60 ? '<span style="color:#ff6b6b">DAMAGED</span> ' : '';
+    var queueInfo = '<br>Queue: <b style="color:' + (t.dispatchQueue ? (t.dispatchQueue.length < CFG.MAX_DISPATCH_QUEUE ? '#4ecca3' : '#f39c12') : '#666') + '">' + (t.dispatchQueue ? t.dispatchQueue.length : 0) + '/' + CFG.MAX_DISPATCH_QUEUE + '</b>';
     html.push(
       '<div class="card" onclick="openDriver(' + t.id + ');">' +
       '<div class="card-row"><span class="card-title"><span class="truck-dot" style="background:' + cfg.color + ';"></span>' + cfg.name + '</span>' +
       '<span class="badge badge-' + (ti+1) + '">T' + (ti+1) + '</span></div>' +
       '<div class="card-sub">Cap: <b style="color:#4ecca3">' + t.capacity + '</b> | Speed: <b style="color:#3498db">' + t.speed.toFixed(1) + '</b> | ' + st + queueInfo + '</div>' +
       '<div class="card-sub">' + fuelWarn + dmgWarn + 'Fuel: ' + Math.round(t.fuel * 100) + '% | Damage: ' + Math.round(t.damage) + '%</div>' +
-      '<div class="card-sub">🔧 Maint: <b style="color:#f39c12">$' + cfg.maint + '/day</b> | Bought: $' + t.costBought.toLocaleString() + '</div>' +
-      '<div class="card-sub">📦 Freight: ' + cfg.compat.map(function(f) { return FT[f] ? FT[f].icon : f; }).join(' ') + '</div>' +
-      '<div class="card-sub">🏠 Hub: ' + (hub ? hub.name : 'None') + '</div>' +
+      '<div class="card-sub">Maint: <b style="color:#f39c12">$' + cfg.maint + '/day</b> | Bought: $' + t.costBought.toLocaleString() + '</div>' +
+      '<div class="card-sub">Freight: ' + cfg.compat.map(function(f) { return FT[f] ? FT[f].icon : f; }).join(' ') + '</div>' +
+      '<div class="card-sub">Hub: ' + (hub ? hub.name : 'None') + '</div>' +
       '<div class="card-row" style="margin-top:8px">' +
         '<span class="badge badge-' + (drv ? (Object.keys(DT).indexOf(drv.type)+1) : 0) + '">' + (drv ? drv.name : 'NO DRIVER') + '</span>' +
         '<div style="margin-left:auto;display:flex;gap:4px">' +
-          '<button class="btn btn-secondary" style="width:auto;padding:6px 12px;font-size:11px" onclick="event.stopPropagation();openDispatch(' + t.id + ');">⚡ Dispatch</button>' +
-          '<button class="btn btn-danger" style="width:auto;padding:6px 12px;font-size:11px" onclick="event.stopPropagation();sellTruck(' + t.id + ');">💰 Sell</button>' +
+          '<button class="btn btn-secondary" style="width:auto;padding:6px 12px;font-size:11px" onclick="event.stopPropagation();openDispatch(' + t.id + ');">Dispatch</button>' +
+          '<button class="btn btn-danger" style="width:auto;padding:6px 12px;font-size:11px" onclick="event.stopPropagation();sellTruck(' + t.id + ');">Sell</button>' +
         '</div>' +
       '</div></div>'
     );
+  });
   c.innerHTML = html.join('');
 }
 
 function renderDrivers() {
   var c = document.getElementById('drivers-list');
   if (G.drivers.length === 0) {
-    c.innerHTML = '<div class="empty-msg"><span>👨‍✈️</span>No drivers. Hire from Market!</div>';
+    c.innerHTML = '<div class="empty-msg"><span>No drivers. Hire from Market!</span></div>';
     return;
   }
   var totalWages = G.drivers.reduce(function(s, d) { return s + DT[d.type].wage; }, 0);
   var assigned = G.drivers.filter(function(d) { return d.truckId !== null; }).length;
-
-  var html = ['<div class="section-lbl">📊 Driver Overview</div>'];
+  var html = ['<div class="section-lbl">Driver Overview</div>'];
   html.push(
     '<div class="card"><div class="card-row">' +
     '<span class="card-title">Drivers: ' + G.drivers.length + '</span>' +
@@ -379,61 +359,50 @@ function renderDrivers() {
     '<div class="card-sub">Wages: $' + totalWages.toLocaleString() + '/day total' +
     '<br>Assigned: ' + assigned + ' | Free: ' + (G.drivers.length - assigned) + '</div></div>'
   );
-
-  html.push('<div class="section-lbl">👨‍✈️ Individual Drivers</div>');
+  html.push('<div class="section-lbl">Individual Drivers</div>');
   G.drivers.forEach(function(d) {
     var t = (d.truckId !== null && d.truckId !== undefined) ? G.fleet.find(function(x) { return x.id === d.truckId; }) : null;
     var ti = Object.keys(DT).indexOf(d.type);
     var thresholds = [500, 1500, 3000, 6000];
     var nextThresh = ti < 4 ? thresholds[ti] : 999999;
     var progPct = ti < 4 ? Math.min(100, Math.round(d.xp / nextThresh * 100)) : 100;
-
     html.push(
       '<div class="card"><div class="card-row">' +
       '<span class="card-title">' + d.name + '</span>' +
       '<span class="badge badge-' + (ti+1) + '">T' + (ti+1) + ' ' + DT[d.type].name + '</span></div>' +
-      '<div class="card-sub">💰 Wage: <b style="color:#f39c12">$' + DT[d.type].wage + '/day</b> | ⚡ Speed: ' + DT[d.type].speedMod + 'x</div>' +
-      '<div class="card-sub">⭐ XP: ' + d.xp + (ti < 4 ? ' / ' + nextThresh : ' (MAX)') + '</div>' +
+      '<div class="card-sub">Wage: <b style="color:#f39c12">$' + DT[d.type].wage + '/day</b> | Speed: ' + DT[d.type].speedMod + 'x</div>' +
+      '<div class="card-sub">XP: ' + d.xp + (ti < 4 ? ' / ' + nextThresh : ' (MAX)') + '</div>' +
       (ti < 4 ? '<div class="progress"><div class="progress-fill" style="width:' + progPct + '%;background:#6d4aff"></div></div>' : '') +
-      '<div class="card-sub">🚚 Truck: ' + (t ? TT_BASE[t.type].name + ' (Cap:' + t.capacity + ')' : '<span style="color:#888">Unassigned</span>') + '</div>' +
+      '<div class="card-sub">Truck: ' + (t ? TT_BASE[t.type].name + ' (Cap:' + t.capacity + ')' : '<span style="color:#888">Unassigned</span>') + '</div>' +
       '</div>'
     );
   });
-
   c.innerHTML = html.join('');
 }
 
 function renderShop() {
   var c = document.getElementById('shop-list');
   var html = [];
-
-  html.push('<div class="section-lbl">🏪 This Week\'s Truck Market (Week ' + G.week + ')</div>');
-  html.push('<div class="card-sub" style="margin-bottom:10px">New trucks appear every Monday!</div>');
-
+  html.push('<div class="section-lbl">Truck Market (Week ' + G.week + ')</div>');
   var marketItems = G.weeklyMarket.filter(function(item) { return !item.sold; });
   if (marketItems.length > 0) {
     marketItems.forEach(function(item) {
       var base = TT_BASE[item.tierKey];
       var idx = G.weeklyMarket.indexOf(item);
       var can = G.cash >= item.cost;
-      var dealBadge = item.dealType === 'deal' ? '<span class="market-tag tag-deal">💰 DEAL</span>' :
-                      (item.dealType === 'hot' ? '<span class="market-tag tag-hot">🔥 HOT</span>' : '');
       html.push(
-        '<div class="market-item ' + (item.dealType === 'deal' ? 'deal' : (item.dealType === 'hot' ? 'hot' : '')) + '" style="position:relative">' +
-        dealBadge +
+        '<div class="market-item ' + (item.dealType === 'deal' ? 'deal' : (item.dealType === 'hot' ? 'hot' : '')) + '">' +
         '<div class="card-row"><span class="card-title"><span class="truck-dot" style="background:' + base.color + ';"></span>' + base.name + '</span>' +
         '<span class="card-reward">$' + item.cost.toLocaleString() + '</span></div>' +
-        '<div class="card-sub">⚡ Cap: <b style="color:#4ecca3">' + item.capacity + '</b> | Speed: <b style="color:#3498db">' + item.speed.toFixed(1) + '</b> | Maint: $' + base.maint + '/day</div>' +
-        '<div class="card-sub">Freight: ' + base.compat.map(function(f) { return FT[f] ? FT[f].icon : f; }).join('/') + '</div>' +
+        '<div class="card-sub">Cap: ' + item.capacity + ' | Speed: ' + item.speed.toFixed(1) + ' | Maint: $' + base.maint + '/day</div>' +
         '<button class="btn" ' + (can ? '' : 'disabled') + ' onclick="buyTruckFromMarket(' + idx + ');">' +
-        (can ? 'BUY NOW' : 'Need $' + item.cost.toLocaleString()) + '</button></div>'
+        (can ? 'BUY' : 'Need $' + item.cost.toLocaleString()) + '</button></div>'
       );
     });
   } else {
-    html.push('<div class="empty-msg"><span>⚠️</span>All trucks sold this week!</div>');
+    html.push('<div class="empty-msg"><span>All trucks sold this week!</span></div>');
   }
-
-  html.push('<div class="section-lbl">👨‍✈️ This Week\'s Available Drivers (Week ' + G.week + ')</div>');
+  html.push('<div class="section-lbl">Available Drivers (Week ' + G.week + ')</div>');
   var driverItems = G.weeklyDrivers.filter(function(item) { return !item.sold; });
   if (driverItems.length > 0) {
     driverItems.forEach(function(item) {
@@ -444,27 +413,25 @@ function renderShop() {
       html.push(
         '<div class="driver-item"><div class="card-row"><span class="card-title">' + item.name + '</span>' +
         '<span class="card-reward">$' + item.cost.toLocaleString() + '</span></div>' +
-        '<div class="card-sub">Tier <span class="badge badge-' + ti + '">T' + ti + '</span> | Wage: $' + cfg.wage + '/day | Speed: ' + cfg.speedMod + 'x</div>' +
+        '<div class="card-sub">Tier ' + ti + ' | Wage: $' + cfg.wage + '/day | Speed: ' + cfg.speedMod + 'x</div>' +
         '<button class="btn btn-secondary" ' + (can ? '' : 'disabled') + ' onclick="buyDriverFromMarket(' + idx + ');">' +
         (can ? 'HIRE' : 'Need $' + item.cost.toLocaleString()) + '</button></div>'
       );
     });
   } else {
-    html.push('<div class="empty-msg"><span>👨‍✈️</span>No drivers available this week!</div>');
+    html.push('<div class="empty-msg"><span>No drivers available this week!</span></div>');
   }
-
-  html.push('<div class="section-lbl">🏠 Purchase Hubs (Permanent)</div>');
+  html.push('<div class="section-lbl">Purchase Hubs</div>');
   Object.keys(HUB).forEach(function(key) {
     var cfg = HUB[key];
     var can = G.cash >= cfg.cost && G.hubs.length < 5;
     html.push(
-      '<div class="card"><div class="card-row"><span class="card-title">🏠 ' + cfg.name + '</span>' +
+      '<div class="card"><div class="card-row"><span class="card-title">' + cfg.name + '</span>' +
       '<span class="card-reward">$' + cfg.cost.toLocaleString() + '</span></div>' +
-      '<div class="card-sub">Capacity: ' + cfg.capacity + ' trucks | Maintenance: $' + cfg.maint + '/day</div>' +
+      '<div class="card-sub">Capacity: ' + cfg.capacity + ' | Maint: $' + cfg.maint + '/day</div>' +
       '<button class="btn btn-warning" ' + (can ? '' : 'disabled') + ' onclick="buyHub(\'' + key + '\');">' +
       (can ? 'Purchase' : 'Need $' + cfg.cost.toLocaleString()) + '</button></div>'
     );
   });
-
   c.innerHTML = html.join('');
 }
