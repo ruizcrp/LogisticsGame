@@ -420,17 +420,15 @@ window.dispatchToPickup = function(tid, oid) {
   if (!t || !o) { toast('Truck or order not found!', 'error'); return; }
   if (t.dispatchQueue.length >= CFG.MAX_DISPATCH_QUEUE) { toast('Queue full!', 'error'); return; }
   
-  // Calculate minimum fuel needed to reach hub from pickup location
   var h = null;
   for (var hi = 0; hi < G.hubs.length; hi++) { if (G.hubs[hi].id === t.homeHub) { h = G.hubs[hi]; break; } }
-  var fuelThreshold = 0.20; // Minimum fuel reserve required
+  var fuelThreshold = 0.20;
   
   if (t.fuel <= fuelThreshold) { 
     toast('Not enough fuel! Need at least ' + Math.round(fuelThreshold * 100) + '%.', 'error'); 
     return; 
   }
   
-  // Check if truck can physically reach next destination with current fuel
   if (t.damage > 60) { toast('Too damaged!', 'error'); return; }
   
   t.dispatchQueue.push(oid);
@@ -447,10 +445,9 @@ window.dispatchToPickup = function(tid, oid) {
 function startDelivery(t) {
   if (!t.dispatchQueue || t.dispatchQueue.length === 0 || t.state !== 'idle') return;
   
-  // BLOCK: Cannot start if fuel is 0 or near-zero
   if (t.fuel <= 0.01) {
     toast('Truck has no fuel! Return to hub first.', 'error');
-    t.dispatchQueue = []; // Clear queue to prevent infinite loop
+    t.dispatchQueue = [];
     t.state = 'idle';
     return;
   }
@@ -832,23 +829,65 @@ function update() {
   }
 
   G.fleet.forEach(function(t) {
-    if (t.state === 'idle') return;
-    var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
-    var speedMod = drv ? DT[drv.type].speedMod : 1.0;
-    var spd = t.speed * 0.0008 * speedMod;
-    var dx = t.tx - t.x, dy = t.ty - t.y;
-    var dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 0.02) { handleArrival(t); }
-    else { t.x += (dx / dist) * spd; t.y += (dy / dist) * spd; }
-  });
+  if (t.state === 'idle') return;
+  var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
+  var speedMod = drv ? DT[drv.type].speedMod : 1.0;
+  var spd = t.speed * 0.0008 * speedMod;
+  var dx = t.tx - t.x, dy = t.ty - t.y;
+  var dist = Math.sqrt(dx * dx + dy * dy);
 
-  var expiredPending = G.orders.filter(function(o) {
-    return o.status === 'pending' && (G.tick > o.createdTick + CFG.ACCEPT_DEADLINE);
-  });
-  expiredPending.forEach(function(o) {
-    toast('Order expired (unaccepted)', 'info');
-    G.orders = G.orders.filter(function(x) { return x.id !== o.id; });
-  });
+  var fuelConsumption = dist * CFG.fuelPerTrip / 0.02;
+  t.fuel = Math.max(0, t.fuel - fuelConsumption);
+  
+  if (t.fuel <= 0.01 && t.state !== 'returning') {
+    toast('Truck ran out of fuel! Returning to hub...', 'error');
+    if (G.hubs.length > 0) {
+      var h = G.hubs[0];
+      for (var hi = 0; hi < G.hubs.length; hi++) { 
+        if (G.hubs[hi].id === t.homeHub) { h = G.hubs[hi]; break; } 
+      }
+      t.tx = h.x; t.ty = h.y;
+      t.state = 'returning';
+      t.dispatchQueue = [];
+      return;
+    }
+  }
+
+  if (dist < 0.02) {
+    if (t.state === 'returning') {
+      var hub = null;
+      for (var hi = 0; hi < G.hubs.length; hi++) {
+        if (G.hubs[hi].id === t.homeHub) { hub = G.hubs[hi]; break; }
+      }
+      if (hub) {
+        t.x = hub.x; t.y = hub.y;
+        t.fuel = 1.0;
+        t.damage = Math.max(0, t.damage - CFG.repairAmt);
+        var refuelCost = Math.round(hub.maint * 0.1);
+        G.cash -= refuelCost;
+        if (t.assignedDriver !== null && t.assignedDriver !== undefined) {
+          G.drivers[t.assignedDriver].xp += 5;
+        }
+        toast('Refueled/Repaired at ' + hub.name + ' (-$' + refuelCost + ')', 'info');
+        t.dispatchQueue = [];
+        t.orderId = null;
+        t.currentCargo = 0;
+        t.state = 'idle';
+        renderAll();
+        return;
+      } else {
+        t.state = 'idle';
+        renderAll();
+        return;
+      }
+    }
+
+    handleArrival(t);
+  } else {
+    t.x += (dx / dist) * spd;
+    t.y += (dy / dist) * spd;
+  }
+});
 
   G.orders.forEach(function(o) {
     if (o.status !== 'accepted' && o.status !== 'in_transit') return;
