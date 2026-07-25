@@ -336,7 +336,10 @@ function renderFleet() {
              '<span style="color:#888">🔄 RETURNING</span>';
     var ti = Object.keys(TT_BASE).indexOf(t.type);
     var hub = G.hubs.find(function(h) { return h.id === t.homeHub; });
-    var fuelWarn = t.fuel < 0.3 ? '<span style="color:#ff6b6b">⛽ LOW</span> ' : '';
+    // Find this part in renderFleet and update:
+var fuelWarn = t.fuel < 0.3 ? '<span style="color:#ff6b6b">⛽ LOW (' + Math.round(t.fuel * 100) + '%)</span> ' :
+              t.fuel < 0.15 ? '<span style="color:#ff0000;font-weight:bold">⛽ CRITICAL (' + Math.round(t.fuel * 100) + '%)</span> ' :
+              'Fuel: ' + Math.round(t.fuel * 100) + '% ';
     var dmgWarn = t.damage > 60 ? '<span style="color:#ff6b6b">🔧 DAMAGED</span> ' : '';
     var queueInfo = '<br>📌 Queue: <b style="color:' + (t.dispatchQueue ? (t.dispatchQueue.length < CFG.MAX_DISPATCH_QUEUE ? '#4ecca3' : '#f39c12') : '#666') + '">' + (t.dispatchQueue ? t.dispatchQueue.length : 0) + '/' + CFG.MAX_DISPATCH_QUEUE + '</b>';
 
