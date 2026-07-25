@@ -677,7 +677,7 @@ function update() {
     var dx = t.tx - t.x, dy = t.ty - t.y;
     var dist = Math.sqrt(dx * dx + dy * dy);
 
-    var fuelConsumption = dist * CFG.fuelPerTrip / 0.02;
+        var fuelConsumption = spd * 0.05; // Consume fuel based on distance moved this frame
     t.fuel = Math.max(0, t.fuel - fuelConsumption);
 
     if (t.fuel <= 0.01 && t.state !== 'returning') {
