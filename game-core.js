@@ -135,7 +135,7 @@ function generateCompanyName() {
 }
 
 function generateAvailableContracts(week) {
-  var num = 3 + Math.floor(Math.random() * 5);
+  var num = 10 + Math.floor(Math.random() * 10);
   var fts = ['bulk', 'container', 'cool', 'special'];
   G.availableContracts = [];
   for (var i = 0; i < num; i++) {
