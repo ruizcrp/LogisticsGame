@@ -177,261 +177,45 @@ window.sellTruck = function(truckId) {
   renderFleet(); renderDrivers(); renderTopBar();
 };
 
-// ==================== RENDERING ====================
 
-function renderAll() {
-  renderTopBar();
-  renderOrders();
-  renderContracts();
-  renderFleet();
-  renderDrivers();
-  renderShop();
-}
-
-function renderTopBar() {
-  document.getElementById('cash').textContent = '$' + G.cash.toLocaleString();
-  document.getElementById('rev').textContent = '$' + G.revenue.toLocaleString();
-  document.getElementById('day').textContent = G.day;
-  document.getElementById('week').textContent = G.week;
-  document.getElementById('ctr').textContent = G.contracts.filter(function(c) { return c && c.active; }).length + '/5';
-  document.getElementById('hub').textContent = G.hubs.length;
-}
-
-function renderOrders() {
-  var c = document.getElementById('orders-list');
-  var html = [];
-  var pending = G.orders.filter(function(o) { return o.status === 'pending'; });
-  if (pending.length > 0) {
-    html.push('<div class="section-lbl">Pending Orders - Must Accept Within ' + (CFG.ACCEPT_DEADLINE / CFG.dayTicks).toFixed(1) + ' Days</div>');
-    pending.forEach(function(o) {
-      var compat = G.fleet.filter(function(t) {
-        return t.state === 'idle' && t.assignedDriver !== null && t.fuel > 0.15 &&
-          (TT_BASE[t.type].compat.indexOf(o.ft) >= 0 || TT_BASE[t.type].compat.indexOf('all') >= 0);
-      }).length;
-      var elapsed = G.tick - o.createdTick;
-      var remainingTicks = CFG.ACCEPT_DEADLINE - elapsed;
-      var daysLeft = (Math.max(0, remainingTicks) / CFG.dayTicks).toFixed(1);
-      var urg = remainingTicks < CFG.dayTicks * 0.5 ? '#ff6b6b' : (remainingTicks < CFG.dayTicks ? '#f39c12' : '#4ecca3');
-      html.push(
-        '<div class="card" onclick="acceptOrder(' + o.id + ');">' +
-        '<div class="card-row"><span class="card-title">' + FT[o.ft].icon +
-        ' <b>' + o.from.name + '</b> -> <b>' + o.to.name + '</b></span>' +
-        '<span class="card-reward">$' + o.reward + '</span></div>' +
-        '<div class="card-sub">' + o.units + ' ' + FT[o.ft].unit +
-        ' | Idle compatible trucks: ' + compat + '</div>' +
-        '<div class="card-sub" style="color:' + urg + '">Accept within ' + daysLeft + ' days (expires!)</div>' +
-        '</div>'
-      );
-    });
-  }
-  var active = G.orders.filter(function(o) { return o.status === 'accepted' || o.status === 'in_transit'; });
-  if (active.length > 0) {
-    html.push('<div class="section-lbl" style="color:#f39c12">Active Orders</div>');
-    active.forEach(function(o) {
-      var pct = o.units > 0 ? Math.round(o.delivered / o.units * 100) : 0;
-      var elapsed = G.tick - o.acceptedTick;
-      var remainingTicks = CFG.ORDER_TIMEOUT - elapsed;
-      var daysLeft = (Math.max(0, remainingTicks) / CFG.dayTicks).toFixed(1);
-      var urg = remainingTicks < CFG.dayTicks ? '#ff6b6b' : (remainingTicks < CFG.dayTicks * 2 ? '#f39c12' : '#4ecca3');
-      html.push(
-        '<div class="card"><div class="card-row"><span class="card-title">' + FT[o.ft].icon +
-        ' <b>' + o.from.name + '</b> -> <b>' + o.to.name + '</b></span>' +
-        '<span class="card-reward">$' + o.reward + '</span></div>' +
-        '<div class="card-sub">' + o.delivered + '/' + o.units + ' ' + FT[o.ft].unit + ' (' + pct + '%)</div>' +
-        '<div class="card-sub" style="color:' + urg + '">' + daysLeft + ' days remaining</div>' +
-        '<div class="progress"><div class="progress-fill" style="width:' + pct + '%;background:#4ecca3"></div></div></div>'
-      );
-    });
-  }
-  if (html.length === 0) html.push('<div class="empty-msg"><span>No orders. Sign contracts!</span></div>');
-  c.innerHTML = html.join('');
-}
-
-function renderContracts() {
-  var c = document.getElementById('contracts-list');
-  var active = G.contracts.filter(function(x) { return x && x.active; });
-  var avail = G.availableContracts;
-  var html = [];
-  if (avail.length > 0) {
-    html.push('<div class="section-lbl">Available Contracts (Randomized Each Week)</div>');
-    avail.forEach(function(comp, idx) {
-      var can = G.cash >= comp.signFee;
-      var ftDisplay = Array.isArray(comp.ft)
-        ? comp.ft.map(function(f) { return FT[f].icon; }).join('/')
-        : FT[comp.ft] ? FT[comp.ft].icon : comp.ft;
-      html.push(
-        '<div class="card"><div class="card-row"><span class="card-title">' + comp.name + '</span>' +
-        '<span class="card-reward">$' + comp.signFee.toLocaleString() + '</span></div>' +
-        '<div class="card-sub">Freight: ' + ftDisplay +
-        ' | Weekly Goal: ' + comp.weeklyVol + ' | Fine: ' + Math.round(comp.finePct * 100) + '%</div>' +
-        '<button class="btn" ' + (can ? '' : 'disabled') + ' onclick="signContract(' + idx + ');">' +
-        (can ? 'Sign Contract' : 'Need $' + comp.signFee.toLocaleString()) + '</button></div>'
-      );
-    });
-  } else {
-    html.push('<div class="empty-msg"><span>No contracts available this week.</span></div>');
-  }
-  if (active.length > 0) {
-    html.push('<div class="section-lbl">Active Contracts (Weekly Assessment)</div>');
-    active.forEach(function(con) {
-      var pct = con.weeklyGoal > 0 ? Math.min(100, Math.round(con.weeklyVol / con.weeklyGoal * 100)) : 0;
-      var color = pct < 50 ? '#ff6b6b' : (pct < 80 ? '#f39c12' : '#4ecca3');
-      var ftDisplay = Array.isArray(con.ft)
-        ? con.ft.map(function(f) { return FT[f].icon; }).join('/')
-        : (FT[con.ft] ? FT[con.ft].icon : con.ft);
-      html.push(
-        '<div class="card' + (pct < 50 ? ' danger' : '') + '">' +
-        '<div class="card-row"><span class="card-title">' + con.company + '</span>' +
-        '<span class="badge" style="background:' + color + ';color:#1a1a2e">' + pct + '%</span></div>' +
-        '<div class="card-sub">This Week: ' + con.weeklyVol + '/' + con.weeklyGoal + '</div>' +
-        '<div class="card-sub" style="font-size:9px;color:#888">Freight: ' + ftDisplay + '</div>' +
-        '<div class="progress"><div class="progress-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
-        '<button class="btn btn-danger" style="margin-top:6px" onclick="cancelContract(' + con.id + ');">Cancel</button></div>'
-      );
-    });
-  }
-  c.innerHTML = html.join('');
-}
-
-function renderFleet() {
-  var c = document.getElementById('fleet-list');
-  if (G.fleet.length === 0) {
-    c.innerHTML = '<div class="empty-msg"><span>No trucks. Buy from Market!</span></div>';
+// ==================== LOAN MANAGEMENT ====================
+window.takeLoan = function(amount) {
+  amount = parseInt(amount);
+  var maxLoan = CFG.MAX_LOAN_INITIAL + Math.round(G.player.totalProfit * 0.5);
+  var canTake = amount <= maxLoan && (G.player.loanAmount + amount) <= maxLoan;
+  
+  if (!canTake) {
+    toast('Cannot take this loan! Max: $' + maxLoan.toLocaleString(), 'error');
     return;
   }
-  var totalMaint = G.fleet.reduce(function(s, t) { return s + TT_BASE[t.type].maint; }, 0);
-  var idleCount = G.fleet.filter(function(t) { return t.state === 'idle'; }).length;
-  var html = ['<div class="section-lbl">Fleet Overview</div>'];
-  html.push(
-    '<div class="card"><div class="card-row">' +
-    '<span class="card-title">Trucks: ' + G.fleet.length + '/' + CFG.maxFleet + '</span>' +
-    '<span class="card-reward">$' + totalMaint + '/day</span></div>' +
-    '<div class="card-sub">Maintenance: $' + totalMaint.toLocaleString() + '/day total' +
-    '<br>Idle: ' + idleCount + ' | Busy: ' + (G.fleet.length - idleCount) + '</div></div>'
-  );
-  html.push('<div class="section-lbl">Individual Trucks</div>');
-  G.fleet.forEach(function(t) {
-    var cfg = TT_BASE[t.type];
-    var drv = (t.assignedDriver !== null && t.assignedDriver !== undefined) ? G.drivers[t.assignedDriver] : null;
-    var st = t.state === 'idle' ? '<span style="color:#4ecca3">IDLE</span>' :
-             t.state === 'to_pickup' ? '<span style="color:#f39c12">-> PICKUP</span>' :
-             t.state === 'to_dropoff' ? '<span style="color:#3498db">-> DELIVER</span>' :
-             '<span style="color:#888">RETURNING</span>';
-    var ti = Object.keys(TT_BASE).indexOf(t.type);
-    var hub = G.hubs.find(function(h) { return h.id === t.homeHub; });
-    var fuelWarn = t.fuel < 0.3 ? '<span style="color:#ff6b6b">LOW</span> ' : '';
-    var dmgWarn = t.damage > 60 ? '<span style="color:#ff6b6b">DAMAGED</span> ' : '';
-    var queueInfo = '<br>Queue: <b style="color:' + (t.dispatchQueue ? (t.dispatchQueue.length < CFG.MAX_DISPATCH_QUEUE ? '#4ecca3' : '#f39c12') : '#666') + '">' + (t.dispatchQueue ? t.dispatchQueue.length : 0) + '/' + CFG.MAX_DISPATCH_QUEUE + '</b>';
-    html.push(
-      '<div class="card" onclick="openDriver(' + t.id + ');">' +
-      '<div class="card-row"><span class="card-title"><span class="truck-dot" style="background:' + cfg.color + ';"></span>' + cfg.name + '</span>' +
-      '<span class="badge badge-' + (ti+1) + '">T' + (ti+1) + '</span></div>' +
-      '<div class="card-sub">Cap: <b style="color:#4ecca3">' + t.capacity + '</b> | Speed: <b style="color:#3498db">' + t.speed.toFixed(1) + '</b> | ' + st + queueInfo + '</div>' +
-      '<div class="card-sub">' + fuelWarn + dmgWarn + 'Fuel: ' + Math.round(t.fuel * 100) + '% | Damage: ' + Math.round(t.damage) + '%</div>' +
-      '<div class="card-sub">Maint: <b style="color:#f39c12">$' + cfg.maint + '/day</b> | Bought: $' + t.costBought.toLocaleString() + '</div>' +
-      '<div class="card-sub">Freight: ' + cfg.compat.map(function(f) { return FT[f] ? FT[f].icon : f; }).join(' ') + '</div>' +
-      '<div class="card-sub">Hub: ' + (hub ? hub.name : 'None') + '</div>' +
-      '<div class="card-row" style="margin-top:8px">' +
-        '<span class="badge badge-' + (drv ? (Object.keys(DT).indexOf(drv.type)+1) : 0) + '">' + (drv ? drv.name : 'NO DRIVER') + '</span>' +
-        '<div style="margin-left:auto;display:flex;gap:4px">' +
-          '<button class="btn btn-secondary" style="width:auto;padding:6px 12px;font-size:11px" onclick="event.stopPropagation();openDispatch(' + t.id + ');">Dispatch</button>' +
-          '<button class="btn btn-danger" style="width:auto;padding:6px 12px;font-size:11px" onclick="event.stopPropagation();sellTruck(' + t.id + ');">Sell</button>' +
-        '</div>' +
-      '</div></div>'
-    );
-  });
-  c.innerHTML = html.join('');
-}
+  
+  G.player.loanAmount += amount;
+  G.cash += amount;
+  G.player.personalCash -= amount; // Taken from personal account as collateral
+  
+  toast('Loan taken: +$' + amount.toLocaleString(), 'success');
+  closeModal('loan-modal');
+  renderAll();
+  renderPlayerInfo();
+};
 
-function renderDrivers() {
-  var c = document.getElementById('drivers-list');
-  if (G.drivers.length === 0) {
-    c.innerHTML = '<div class="empty-msg"><span>No drivers. Hire from Market!</span></div>';
+window.repayLoan = function(amount) {
+  amount = parseInt(amount);
+  var canRepay = Math.min(amount, G.cash, G.player.loanAmount);
+  
+  if (canRepay <= 0) {
+    toast('Cannot repay!', 'error');
     return;
   }
-  var totalWages = G.drivers.reduce(function(s, d) { return s + DT[d.type].wage; }, 0);
-  var assigned = G.drivers.filter(function(d) { return d.truckId !== null; }).length;
-  var html = ['<div class="section-lbl">Driver Overview</div>'];
-  html.push(
-    '<div class="card"><div class="card-row">' +
-    '<span class="card-title">Drivers: ' + G.drivers.length + '</span>' +
-    '<span class="card-reward">$' + totalWages + '/day</span></div>' +
-    '<div class="card-sub">Wages: $' + totalWages.toLocaleString() + '/day total' +
-    '<br>Assigned: ' + assigned + ' | Free: ' + (G.drivers.length - assigned) + '</div></div>'
-  );
-  html.push('<div class="section-lbl">Individual Drivers</div>');
-  G.drivers.forEach(function(d) {
-    var t = (d.truckId !== null && d.truckId !== undefined) ? G.fleet.find(function(x) { return x.id === d.truckId; }) : null;
-    var ti = Object.keys(DT).indexOf(d.type);
-    var thresholds = [500, 1500, 3000, 6000];
-    var nextThresh = ti < 4 ? thresholds[ti] : 999999;
-    var progPct = ti < 4 ? Math.min(100, Math.round(d.xp / nextThresh * 100)) : 100;
-    html.push(
-      '<div class="card"><div class="card-row">' +
-      '<span class="card-title">' + d.name + '</span>' +
-      '<span class="badge badge-' + (ti+1) + '">T' + (ti+1) + ' ' + DT[d.type].name + '</span></div>' +
-      '<div class="card-sub">Wage: <b style="color:#f39c12">$' + DT[d.type].wage + '/day</b> | Speed: ' + DT[d.type].speedMod + 'x</div>' +
-      '<div class="card-sub">XP: ' + d.xp + (ti < 4 ? ' / ' + nextThresh : ' (MAX)') + '</div>' +
-      (ti < 4 ? '<div class="progress"><div class="progress-fill" style="width:' + progPct + '%;background:#6d4aff"></div></div>' : '') +
-      '<div class="card-sub">Truck: ' + (t ? TT_BASE[t.type].name + ' (Cap:' + t.capacity + ')' : '<span style="color:#888">Unassigned</span>') + '</div>' +
-      '</div>'
-    );
-  });
-  c.innerHTML = html.join('');
-}
+  
+  G.player.loanAmount -= canRepay;
+  G.cash -= canRepay;
+  G.player.personalCash += canRepay; // Repaid from business, personal gains
+  
+  toast('Loan repaid: -$' + canRepay.toLocaleString(), 'success');
+  closeModal('loan-modal');
+  renderAll();
+  renderPlayerInfo();
+};
 
-function renderShop() {
-  var c = document.getElementById('shop-list');
-  var html = [];
-  html.push('<div class="section-lbl">Truck Market (Week ' + G.week + ')</div>');
-  var marketItems = G.weeklyMarket.filter(function(item) { return !item.sold; });
-  if (marketItems.length > 0) {
-    marketItems.forEach(function(item) {
-      var base = TT_BASE[item.tierKey];
-      var idx = G.weeklyMarket.indexOf(item);
-      var can = G.cash >= item.cost;
-      html.push(
-        '<div class="market-item ' + (item.dealType === 'deal' ? 'deal' : (item.dealType === 'hot' ? 'hot' : '')) + '">' +
-        '<div class="card-row"><span class="card-title"><span class="truck-dot" style="background:' + base.color + ';"></span>' + base.name + '</span>' +
-        '<span class="card-reward">$' + item.cost.toLocaleString() + '</span></div>' +
-        '<div class="card-sub">Cap: ' + item.capacity + ' | Speed: ' + item.speed.toFixed(1) + ' | Maint: $' + base.maint + '/day</div>' +
-        '<button class="btn" ' + (can ? '' : 'disabled') + ' onclick="buyTruckFromMarket(' + idx + ');">' +
-        (can ? 'BUY' : 'Need $' + item.cost.toLocaleString()) + '</button></div>'
-      );
-    });
-  } else {
-    html.push('<div class="empty-msg"><span>All trucks sold this week!</span></div>');
-  }
-  html.push('<div class="section-lbl">Available Drivers (Week ' + G.week + ')</div>');
-  var driverItems = G.weeklyDrivers.filter(function(item) { return !item.sold; });
-  if (driverItems.length > 0) {
-    driverItems.forEach(function(item) {
-      var cfg = DT[item.type];
-      var idx = G.weeklyDrivers.indexOf(item);
-      var can = G.cash >= item.cost;
-      var ti = Object.keys(DT).indexOf(item.type) + 1;
-      html.push(
-        '<div class="driver-item"><div class="card-row"><span class="card-title">' + item.name + '</span>' +
-        '<span class="card-reward">$' + item.cost.toLocaleString() + '</span></div>' +
-        '<div class="card-sub">Tier ' + ti + ' | Wage: $' + cfg.wage + '/day | Speed: ' + cfg.speedMod + 'x</div>' +
-        '<button class="btn btn-secondary" ' + (can ? '' : 'disabled') + ' onclick="buyDriverFromMarket(' + idx + ');">' +
-        (can ? 'HIRE' : 'Need $' + item.cost.toLocaleString()) + '</button></div>'
-      );
-    });
-  } else {
-    html.push('<div class="empty-msg"><span>No drivers available this week!</span></div>');
-  }
-  html.push('<div class="section-lbl">Purchase Hubs</div>');
-  Object.keys(HUB).forEach(function(key) {
-    var cfg = HUB[key];
-    var can = G.cash >= cfg.cost && G.hubs.length < 5;
-    html.push(
-      '<div class="card"><div class="card-row"><span class="card-title">' + cfg.name + '</span>' +
-      '<span class="card-reward">$' + cfg.cost.toLocaleString() + '</span></div>' +
-      '<div class="card-sub">Capacity: ' + cfg.capacity + ' | Maint: $' + cfg.maint + '/day</div>' +
-      '<button class="btn btn-warning" ' + (can ? '' : 'disabled') + ' onclick="buyHub(\'' + key + '\');">' +
-      (can ? 'Purchase' : 'Need $' + cfg.cost.toLocaleString()) + '</button></div>'
-    );
-  });
-  c.innerHTML = html.join('');
-}
+

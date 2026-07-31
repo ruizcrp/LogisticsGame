@@ -19,6 +19,10 @@
     <div class="stat-item"><span class="stat-label">Contracts</span><span class="stat-value" id="ctr">0/5</span></div>
     <div class="stat-item"><span class="stat-label">Hubs</span><span class="stat-value" id="hub">0</span></div>
   </div>
+    <div id="loan-indicator" style="display:none; margin-left:8px; font-weight:bold;"></div>
+  <button id="save-btn" style="background:#3498db;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:bold;cursor:pointer;margin-right:8px;">💾 Save</button>
+  <button id="load-btn" style="background:#f39c12;color:#1a1a2e;border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:bold;cursor:pointer;margin-right:8px;">📂 Load</button>
+  <button id="loan-btn" style="background:#6d4aff;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:bold;cursor:pointer;margin-right:8px;">🏦 Bank</button>
 </div>
 
 <div id="canvas-container"><canvas id="canvas"></canvas></div>
@@ -30,6 +34,7 @@
 <div class="panel" id="tab-fleet"><div id="fleet-list"></div></div>
 <div class="panel" id="tab-drivers"><div id="drivers-list"></div></div>
 <div class="panel" id="tab-shop"><div id="shop-list"></div></div>
+<div class="panel" id="tab-player"><div id="player-info-panel"></div></div>
 
 <div id="nav">
   <button class="nav-btn active" data-tab="map"><span class="nav-icon">🗺️</span>Map</button>
@@ -38,6 +43,7 @@
   <button class="nav-btn" data-tab="fleet"><span class="nav-icon">🚚</span>Fleet</button>
   <button class="nav-btn" data-tab="drivers"><span class="nav-icon">👨‍✈️</span>Drivers</button>
   <button class="nav-btn" data-tab="shop"><span class="nav-icon">🏪</span>Market</button>
+  <button class="nav-btn" data-tab="player"><span class="nav-icon">👤</span>Player</button>
 </div>
 
 <div class="modal" id="dispatch-modal">
@@ -55,6 +61,21 @@
     <div class="modal-info" id="driver-info"></div>
     <div id="driver-items"></div>
     <button class="btn btn-secondary" onclick="closeModal('driver-modal')">Close</button>
+  </div>
+</div>
+
+<div class="modal" id="loan-modal">
+  <div class="modal-box">
+    <div class="modal-header">🏦 Bank Loans</div>
+    <div class="modal-info">
+      <div>Current Loan: <strong>$' + G.player.loanAmount.toLocaleString() + '</strong></div>
+      <div>Daily Interest: <span style="color:#ff6b6b">$' + Math.round(G.player.loanAmount * CFG.LOAN_INTEREST_DAILY * 0.01) + '</span></div>
+      <div>Available Credit: <strong>$' + (CFG.MAX_LOAN_INITIAL + Math.round(G.player.totalProfit * 0.5) - G.player.loanAmount).toLocaleString() + '</strong></div>
+    </div>
+    <input type="number" id="loan-amount" placeholder="Enter amount" style="width:100%;padding:8px;margin:8px 0;background:#16213e;color:#fff;border:1px solid #6d4aff;border-radius:6px;">
+    <button class="btn" onclick="takeLoan(document.getElementById('loan-amount').value)">Take Loan</button>
+    <button class="btn btn-secondary" onclick="repayLoan(document.getElementById('loan-amount').value)">Repay Loan</button>
+    <button class="btn btn-danger" onclick="closeModal('loan-modal')">Close</button>
   </div>
 </div>
 
