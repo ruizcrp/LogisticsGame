@@ -92,7 +92,7 @@ var G = {
   gameOver: false
 };
 
-var isPaused = false;
+var isPaused = true;
 
 function uid(type) {
   if (type === 'truck') return ++G.truckId;
@@ -346,12 +346,12 @@ function generateAvailableContracts(week) {
   for (var i = 0; i < num; i++) {
     var ft = fts[Math.floor(Math.random() * fts.length)];
     if (Math.random() > 0.7) { var ft2 = fts[Math.floor(Math.random() * fts.length)]; if (ft2 !== ft) ft = [ft, ft2]; }
-    var bases = { bulk: 400, container: 600, cool: 500, special: 800 };
+    var bases = { bulk: 400, container: 100, cool: 500, special: 800 };
     var pf = Array.isArray(ft) ? ft[0] : ft;
     var bf = bases[pf] || 500;
     var fm = Array.isArray(ft) ? 1.5 : 1.0;
     var sf = Math.round(bf * 0.7 * fm + Math.random() * bf * 0.6 * fm);
-    var mg = Array.isArray(ft) ? 80 : 25, mgx = Array.isArray(ft) ? 350 : 150;
+    var mg = Array.isArray(ft) ? 15 : 6, mgx = Array.isArray(ft) ? 350 : 150;
     var wv = Math.floor(mg + Math.random() * (mgx - mg));
     var fp = 0.15 + Math.random() * 0.35;
     var dt = Math.floor(Math.random() * 5) + 1;
