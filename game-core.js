@@ -908,20 +908,32 @@ function update() {
   }
   
   // ... rest of the truck movement and order processing code remains the same ...
-  
   G.fleet.forEach(function(t) {
-    if (t.state === 'idle') return;
-    // ... existing movement code ...
-  });
-  
-  // Order expiry handling
-  var expiredPending = G.orders.filter(function(o) {
-    return o.status === 'pending' && (G.tick > o.createdTick + CFG.ACCEPT_DEADLINE);
-  });
-  expiredPending.forEach(function(o) {
-    toast('Order expired (unaccepted)', 'info');
-    G.orders = G.orders.filter(function(x) { return x.id !== o.id; });
-  });
+  if (t.state === 'idle') return;
+
+  var dx = t.tx - t.x;
+  var dy = t.ty - t.y;
+  var distance = Math.sqrt(dx * dx + dy * dy);
+
+  if (distance < 0.002) {
+    handleArrival(t);
+    return;
+  }
+
+  var driver = null;
+  if (t.assignedDriver !== null && t.assignedDriver !== undefined) {
+    driver = G.drivers[t.assignedDriver];
+  }
+
+  var driverSpeed = driver ? driver.speedMod : 1;
+  var step = (t.speed * driverSpeed) / 10000;
+
+  t.x += (dx / distance) * step;
+  t.y += (dy / distance) * step;
+
+  // Consume fuel while travelling.
+  t.fuel = Math.max(0, t.fuel - CFG.fuelPerTrip / CFG.dayTicks);
+});
   
   // Order timeout handling
   G.orders.forEach(function(o) {
@@ -941,7 +953,7 @@ function update() {
         o.assignedTrucks.forEach(function(tid) {
           var tr = G.fleet.find(function(x) { return x.id === tid; });
           if (tr) {
-            var qIdx = tr.dispatchQueue.indexOf(tid);
+            var qIdx = tr.dispatchQueue.indexOf(o.id);
             if (qIdx >= 0) tr.dispatchQueue.splice(qIdx, 1);
           }
         });
